@@ -2,6 +2,8 @@ import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
+export const dynamic = 'force-dynamic';
+
 async function addDeviceCredential(formData: FormData) {
     'use server';
     const deviceIp = formData.get('deviceIp') as string;
@@ -39,7 +41,7 @@ export default async function DeviceCredentialsPage() {
 
     // Get all known device IPs from current BGP state for autocomplete suggestions
     const knownDevices = await prisma.bgpCurrentState.findMany({
-        select: { deviceIp: true, deviceName: true, deviceDescription: true },
+        select: { deviceIp: true, deviceName: true },
         distinct: ['deviceIp'],
         orderBy: { deviceName: 'asc' },
     });
@@ -78,7 +80,6 @@ export default async function DeviceCredentialsPage() {
                                     {knownDevices.map(d => (
                                         <option key={d.deviceIp} value={d.deviceIp}>
                                             {d.deviceName} ({d.deviceIp})
-                                            {d.deviceDescription ? ` — ${d.deviceDescription.slice(0, 30)}` : ''}
                                         </option>
                                     ))}
                                 </select>
@@ -146,7 +147,7 @@ export default async function DeviceCredentialsPage() {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {creds.map(c => (
+                                        {creds.map((c: any) => (
                                             <tr key={c.id}>
                                                 <td>
                                                     <span className="font-mono font-bold text-white">{c.deviceIp}</span>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
 
 interface SortableHeaderProps {
     label: string;
@@ -10,7 +11,7 @@ interface SortableHeaderProps {
     align?: 'left' | 'right';
 }
 
-export default function SortableHeader({ label, sortKey, className, style, align = 'left' }: SortableHeaderProps) {
+function SortableHeaderInner({ label, sortKey, className, style, align = 'left' }: SortableHeaderProps) {
     const router = useRouter();
     const searchParams = useSearchParams();
     const currentSort = searchParams.get('sort') || '';
@@ -45,4 +46,12 @@ export default function SortableHeader({ label, sortKey, className, style, align
             </span>
         </th>
     );
+}
+
+export default function SortableHeader(props: SortableHeaderProps) {
+    return (
+        <Suspense fallback={<th className={props.className} style={props.style}>{props.label}</th>}>
+            <SortableHeaderInner {...props} />
+        </Suspense>
+    )
 }

@@ -1,12 +1,13 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
 
 interface Props {
     devices: string[];
 }
 
-export default function DashboardFilters({ devices }: Props) {
+function DashboardFiltersInner({ devices }: Props) {
     const router = useRouter();
     const searchParams = useSearchParams();
     const currentDevice = searchParams.get('device') || 'all';
@@ -60,4 +61,12 @@ export default function DashboardFilters({ devices }: Props) {
             </select>
         </div>
     );
+}
+
+export default function DashboardFilters({ devices }: Props) {
+    return (
+        <Suspense fallback={<div className="h-8 w-64 bg-white/5 animate-pulse rounded"></div>}>
+            <DashboardFiltersInner devices={devices} />
+        </Suspense>
+    )
 }

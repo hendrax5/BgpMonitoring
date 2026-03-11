@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
         }, 20000);
 
         conn.on('ready', () => {
-            conn.exec(command, (err, stream) => {
+            conn.exec(command, (err: any, stream: any) => {
                 if (err) {
                     clearTimeout(timeout);
                     conn.end();
@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
                     resolve(NextResponse.json({ output: output.trim(), command, vendor: cred.vendor }));
                 });
             });
-        }).on('error', (err) => {
+        }).on('error', (err: any) => {
             clearTimeout(timeout);
             resolve(NextResponse.json({ error: `SSH Error: ${err.message}` }, { status: 500 }));
         }).connect({

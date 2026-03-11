@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
 
 const navItems = [
   { href: '/', label: 'Overview', icon: 'dashboard' },
@@ -9,7 +10,7 @@ const navItems = [
   { href: '/settings', label: 'Settings', icon: 'settings' },
 ];
 
-export default function Sidebar() {
+function SidebarInner() {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -129,4 +130,14 @@ export default function Sidebar() {
       </div>
     </aside>
   );
+}
+
+export default function Sidebar() {
+  return (
+    <Suspense fallback={
+        <aside className="w-56 flex-shrink-0 flex flex-col border-r bg-[#0d1520] border-white/10 min-h-screen"></aside>
+    }>
+        <SidebarInner />
+    </Suspense>
+  )
 }
