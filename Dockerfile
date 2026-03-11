@@ -42,8 +42,6 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 # Install production dependencies for the worker since Next.js standalone doesn't include them
 RUN npm install --omit=dev && npm install tsx
 
-USER nextjs
-
 EXPOSE 3000
 
 # We use a custom start script to run both the Next.js server and the Prisma worker
