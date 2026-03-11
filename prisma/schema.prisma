@@ -1,0 +1,97 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL") // Will be set to "file:./bgp_watcher.db" in Docker
+}
+
+model AsnDictionary {
+  asn              BigInt   @id
+  organizationName String   @map("organization_name")
+  lastUpdatedAt    DateTime @updatedAt @map("last_updated_at")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  bgpStates BgpCurrentState[]
+}
+
+model BgpCurrentState {
+  id                 Int      @id @default(autoincrement())
+  serverName         String   @default("default") @map("server_name")
+  deviceId           Int      @map("device_id")
+  deviceName         String   @map("device_name")
+  deviceDescription  String?  @map("device_description")
+  deviceIp           String   @map("device_ip")
+  peerIp             String   @map("peer_ip")
+  remoteAsn          BigInt   @map("remote_asn")
+  bgpState           String   @map("bgp_state")
+  acceptedPrefixes   Int      @map("accepted_prefixes")
+  advertisedPrefixes Int      @map("advertised_prefixes")
+  stateChangedAt     DateTime @default(now()) @map("state_changed_at")
+  lastUpdated        DateTime @map("last_updated")
+
+  asnDictionary AsnDictionary @relation(fields: [remoteAsn], references: [asn])
+
+  @@unique([serverName, deviceId, peerIp])
+  @@index([bgpState])
+  @@map("bgp_current_state")
+}
+
+model HistoricalEvent {
+  eventId          Int      @id @default(autoincrement()) @map("event_id")
+  serverName       String   @default("default") @map("server_name")
+  eventTimestamp   DateTime @map("event_timestamp")
+  deviceName       String   @map("device_name")
+  deviceIp         String   @map("device_ip")
+  peerIp           String   @map("peer_ip")
+  asn              BigInt
+  organizationName String   @map("organization_name")
+  eventType        String   @map("event_type") // 'UP' or 'DOWN'
+  downEventId      BigInt?  @map("down_event_id") // Relates UP to DOWN
+  downtimeDuration Int?     @map("downtime_duration") // In seconds
+
+  @@index([peerIp])
+  @@map("historical_event")
+}
+
+model LibrenmsServer {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  apiUrl    String   @map("api_url")
+  apiToken  String   @map("api_token")
+  sshHost   String?  @map("ssh_host")
+  sshPort   Int?     @default(22) @map("ssh_port")
+  sshUser   String?  @map("ssh_user")
+  sshPass   String?  @map("ssh_pass")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("librenms_server")
+}
+
+model DeviceCredential {
+  id        Int      @id @default(autoincrement())
+  deviceIp  String   @unique @map("device_ip")  // Exact IP or CIDR prefix like 10.1.1.
+  sshPort   Int      @default(22) @map("ssh_port")
+  sshUser   String   @map("ssh_user")
+  sshPass   String   @map("ssh_pass")
+  vendor    String   @default("cisco") // cisco | juniper | huawei
+  notes     String?  // Optional label e.g. "Core Routers"
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("device_credential")
+}
+
+model AppUser {
+  id        Int      @id @default(autoincrement())
+  username  String   @unique
+  password  String // hashed
+  createdAt DateTime @default(now()) @map("created_at")
+  @@map("app_users")
+}

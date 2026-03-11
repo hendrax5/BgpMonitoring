@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>LibreNMS | BGP Alerts &amp; Event Log</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#13a4ec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101c22",
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 min-h-screen">
+<div class="flex flex-col min-h-screen">
+<!-- Top Navigation -->
+<header class="border-b border-slate-200 dark:border-slate-800 bg-background-light dark:bg-background-dark sticky top-0 z-50">
+<div class="max-w-[1440px] mx-auto px-6 h-16 flex items-center justify-between gap-8">
+<div class="flex items-center gap-8">
+<div class="flex items-center gap-3 text-primary">
+<span class="material-symbols-outlined text-3xl">hub</span>
+<h1 class="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Libre<span class="text-primary">NMS</span></h1>
+</div>
+<nav class="hidden md:flex items-center gap-6">
+<a class="text-sm font-medium hover:text-primary transition-colors" href="#">Dashboard</a>
+<a class="text-sm font-medium text-primary border-b-2 border-primary pb-5 mt-5" href="#">BGP Alerts</a>
+<a class="text-sm font-medium hover:text-primary transition-colors" href="#">Devices</a>
+<a class="text-sm font-medium hover:text-primary transition-colors" href="#">Ports</a>
+</nav>
+</div>
+<div class="flex items-center gap-4 flex-1 justify-end">
+<div class="relative w-full max-w-md hidden sm:block">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
+<input class="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-lg pl-10 pr-4 py-2 text-sm focus:ring-2 focus:ring-primary" placeholder="Quick find (AS, IP, Device)..." type="text"/>
+</div>
+<div class="flex items-center gap-2">
+<button class="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg relative text-slate-600 dark:text-slate-400">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full"></span>
+</button>
+<button class="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-400">
+<span class="material-symbols-outlined">settings</span>
+</button>
+<div class="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold ml-2">
+                            JD
+                        </div>
+</div>
+</div>
+</div>
+</header>
+<main class="flex-1 max-w-[1440px] mx-auto w-full p-6 flex flex-col gap-6">
+<!-- Header Section -->
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+<div>
+<h2 class="text-3xl font-bold tracking-tight">BGP Event Log</h2>
+<p class="text-slate-500 dark:text-slate-400 mt-1">Real-time monitoring and historical analysis of BGP state changes.</p>
+</div>
+<div class="flex gap-2">
+<button class="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-all">
+<span class="material-symbols-outlined text-sm">download</span>
+                        Export Logs
+                    </button>
+<button class="flex items-center justify-center p-2 bg-slate-100 dark:bg-slate-800 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+<span class="material-symbols-outlined">refresh</span>
+</button>
+</div>
+</div>
+<!-- Filters Area -->
+<div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4">
+<div class="flex flex-wrap gap-4 items-center">
+<div class="flex-1 min-w-[300px] relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">filter_alt</span>
+<input class="w-full bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 rounded-lg pl-10 pr-4 py-2.5 text-sm focus:ring-primary focus:border-primary" placeholder="Filter by Peer IP, AS Number, or Error Code..." type="text"/>
+</div>
+<div class="flex gap-3 flex-wrap">
+<select class="bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 rounded-lg py-2.5 pl-3 pr-10 text-sm focus:ring-primary">
+<option>Severity: All</option>
+<option class="text-red-500">Critical</option>
+<option class="text-orange-500">Warning</option>
+<option class="text-blue-500">Info</option>
+</select>
+<select class="bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 rounded-lg py-2.5 pl-3 pr-10 text-sm focus:ring-primary">
+<option>BGP State: Any</option>
+<option>Established</option>
+<option>Idle</option>
+<option>Active</option>
+<option>Connect</option>
+</select>
+<select class="bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 rounded-lg py-2.5 pl-3 pr-10 text-sm focus:ring-primary">
+<option>Time: Last 24 Hours</option>
+<option>Last 7 Days</option>
+<option>Last 30 Days</option>
+<option>Custom Range</option>
+</select>
+<button class="px-4 py-2.5 text-slate-600 dark:text-slate-400 font-medium text-sm hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+                            Clear Filters
+                        </button>
+</div>
+</div>
+<!-- Active Filter Tags -->
+<div class="flex flex-wrap gap-2 mt-4">
+<span class="text-xs font-semibold text-slate-500 dark:text-slate-500 uppercase tracking-wider self-center mr-2">Active:</span>
+<div class="flex items-center gap-1 bg-primary/10 text-primary px-3 py-1 rounded-full text-xs font-medium">
+                        AS: 64496
+                        <span class="material-symbols-outlined text-xs cursor-pointer">close</span>
+</div>
+<div class="flex items-center gap-1 bg-red-500/10 text-red-500 px-3 py-1 rounded-full text-xs font-medium border border-red-500/20">
+                        Severity: Critical
+                        <span class="material-symbols-outlined text-xs cursor-pointer">close</span>
+</div>
+</div>
+</div>
+<!-- Event Log Table -->
+<div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm">
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+<th class="px-6 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Severity</th>
+<th class="px-6 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Timestamp</th>
+<th class="px-6 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Peer Info</th>
+<th class="px-6 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Event / Change</th>
+<th class="px-6 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-right">Details</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+<!-- Entry 1: Critical Down -->
+<tr class="group hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<div class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
+<span class="text-xs font-bold text-red-500 uppercase">Critical</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<div class="text-sm font-medium">2023-11-20 14:02:41</div>
+<div class="text-xs text-slate-500">2 minutes ago</div>
+</td>
+<td class="px-6 py-4">
+<div class="text-sm font-bold">192.0.2.14</div>
+<div class="text-xs text-slate-500">AS 64496 (Global-Transit)</div>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2 text-sm text-slate-900 dark:text-slate-100">
+<span class="px-2 py-0.5 rounded bg-green-500/10 text-green-500 text-xs font-bold border border-green-500/20">Established</span>
+<span class="material-symbols-outlined text-sm text-slate-400">arrow_forward</span>
+<span class="px-2 py-0.5 rounded bg-red-500/10 text-red-500 text-xs font-bold border border-red-500/20">Idle</span>
+</div>
+<div class="text-xs text-slate-500 mt-1 italic">BGP Hold Timer Expired (Error 4/0)</div>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="p-1 hover:bg-primary/10 hover:text-primary rounded-lg transition-colors">
+<span class="material-symbols-outlined">expand_more</span>
+</button>
+</td>
+</tr>
+<!-- Entry 2: Warning -->
+<tr class="group hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<div class="w-2 h-2 rounded-full bg-orange-500"></div>
+<span class="text-xs font-bold text-orange-500 uppercase">Warning</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<div class="text-sm font-medium">2023-11-20 13:45:12</div>
+<div class="text-xs text-slate-500">19 minutes ago</div>
+</td>
+<td class="px-6 py-4">
+<div class="text-sm font-bold">203.0.113.88</div>
+<div class="text-xs text-slate-500">AS 64501 (Local-Peering)</div>
+</td>
+<td class="px-6 py-4">
+<div class="text-sm">Prefix limit reached (95%)</div>
+<div class="text-xs text-slate-500 mt-1 italic">Threshold 1000, Current 951</div>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="p-1 hover:bg-primary/10 hover:text-primary rounded-lg transition-colors">
+<span class="material-symbols-outlined">expand_more</span>
+</button>
+</td>
+</tr>
+<!-- Entry 3: Info Up -->
+<tr class="group bg-primary/5 hover:bg-primary/10 transition-colors">
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<div class="w-2 h-2 rounded-full bg-primary"></div>
+<span class="text-xs font-bold text-primary uppercase">Recovery</span>
+</div>
+</td>
+<td class="px-6 py-4 text-slate-400">
+<div class="text-sm font-medium">2023-11-20 12:30:05</div>
+<div class="text-xs">1.5 hours ago</div>
+</td>
+<td class="px-6 py-4">
+<div class="text-sm font-bold">198.51.100.2</div>
+<div class="text-xs text-slate-500">AS 64512 (IXP-Public)</div>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2 text-sm">
+<span class="px-2 py-0.5 rounded bg-slate-500/10 text-slate-500 text-xs font-bold border border-slate-500/20">Connect</span>
+<span class="material-symbols-outlined text-sm text-slate-400">arrow_forward</span>
+<span class="px-2 py-0.5 rounded bg-green-500/10 text-green-500 text-xs font-bold border border-green-500/20">Established</span>
+</div>
+<div class="text-xs text-green-600/70 dark:text-green-400/70 mt-1 italic">Session restored after 12m 4s</div>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="p-1 hover:bg-primary/10 hover:text-primary rounded-lg transition-colors">
+<span class="material-symbols-outlined text-sm">unfold_less</span>
+</button>
+</td>
+</tr>
+<!-- Expanded Section Mockup -->
+<tr class="bg-primary/5">
+<td class="px-8 pb-6 pt-2" colspan="5">
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 bg-white dark:bg-slate-900 p-6 rounded-xl border border-primary/20 shadow-inner">
+<div class="space-y-3">
+<h4 class="text-xs font-bold text-slate-500 uppercase tracking-widest">Device Details</h4>
+<div class="flex flex-col gap-1">
+<div class="text-sm flex justify-between"><span class="text-slate-500">Host:</span> <span class="font-medium">edge-01.lon.network.net</span></div>
+<div class="text-sm flex justify-between"><span class="text-slate-500">Interface:</span> <span class="font-medium">HundredGigE0/0/0/1</span></div>
+<div class="text-sm flex justify-between"><span class="text-slate-500">Vendor:</span> <span class="font-medium">Cisco IOS-XR</span></div>
+</div>
+</div>
+<div class="space-y-3">
+<h4 class="text-xs font-bold text-slate-500 uppercase tracking-widest">Neighbor Details</h4>
+<div class="flex flex-col gap-1">
+<div class="text-sm flex justify-between"><span class="text-slate-500">Remote AS:</span> <span class="font-medium text-primary">64512</span></div>
+<div class="text-sm flex justify-between"><span class="text-slate-500">Uptime:</span> <span class="font-medium">0d 0h 12m</span></div>
+<div class="text-sm flex justify-between"><span class="text-slate-500">AFI/SAFI:</span> <span class="font-medium">IPv4 Unicast</span></div>
+</div>
+</div>
+<div class="space-y-3">
+<h4 class="text-xs font-bold text-slate-500 uppercase tracking-widest">Diagnostics</h4>
+<div class="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg font-mono text-xs text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+                                                %BGP-5-ADJCHANGE: neighbor 198.51.100.2 Up <br/>
+                                                Next-hop reachability verified via igp. <br/>
+                                                Capabilities: Multiprotocol, Route-Refresh
+                                            </div>
+</div>
+</div>
+</td>
+</tr>
+<!-- Entry 4: Normal -->
+<tr class="group hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<div class="w-2 h-2 rounded-full bg-slate-400"></div>
+<span class="text-xs font-bold text-slate-400 uppercase">Info</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<div class="text-sm font-medium">2023-11-20 11:15:00</div>
+<div class="text-xs text-slate-500">3 hours ago</div>
+</td>
+<td class="px-6 py-4">
+<div class="text-sm font-bold">192.0.2.200</div>
+<div class="text-xs text-slate-500">AS 64510 (Cloud-Direct)</div>
+</td>
+<td class="px-6 py-4">
+<div class="text-sm">Route Refresh Triggered</div>
+<div class="text-xs text-slate-500 mt-1 italic">Soft reset requested by administrator</div>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="p-1 hover:bg-primary/10 hover:text-primary rounded-lg transition-colors">
+<span class="material-symbols-outlined">expand_more</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Pagination -->
+<div class="px-6 py-4 bg-slate-50 dark:bg-slate-800/30 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
+<span class="text-sm text-slate-500">Showing <span class="font-bold text-slate-900 dark:text-slate-100">1-15</span> of 248 events</span>
+<div class="flex gap-2">
+<button class="px-3 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-sm hover:bg-slate-100 transition-colors disabled:opacity-50" disabled="">Previous</button>
+<button class="px-3 py-1 bg-primary text-white rounded text-sm hover:bg-primary/90 transition-colors">1</button>
+<button class="px-3 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-sm hover:bg-slate-100 transition-colors">2</button>
+<button class="px-3 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-sm hover:bg-slate-100 transition-colors">3</button>
+<button class="px-3 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-sm hover:bg-slate-100 transition-colors">Next</button>
+</div>
+</div>
+</div>
+<!-- Stats Widgets -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+<div class="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+<p class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Active Peers</p>
+<div class="flex items-center justify-between">
+<span class="text-3xl font-bold">142</span>
+<div class="p-2 bg-green-500/10 text-green-500 rounded-lg">
+<span class="material-symbols-outlined">check_circle</span>
+</div>
+</div>
+<div class="mt-2 text-xs text-green-500 font-medium">+2 since last hour</div>
+</div>
+<div class="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+<p class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Down Sessions</p>
+<div class="flex items-center justify-between">
+<span class="text-3xl font-bold">3</span>
+<div class="p-2 bg-red-500/10 text-red-500 rounded-lg">
+<span class="material-symbols-outlined">error</span>
+</div>
+</div>
+<div class="mt-2 text-xs text-red-500 font-medium">Critical: Action Required</div>
+</div>
+<div class="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+<p class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Events (24h)</p>
+<div class="flex items-center justify-between">
+<span class="text-3xl font-bold">1,204</span>
+<div class="p-2 bg-primary/10 text-primary rounded-lg">
+<span class="material-symbols-outlined">bar_chart</span>
+</div>
+</div>
+<div class="mt-2 text-xs text-slate-500">Average: 50.1 / hour</div>
+</div>
+<div class="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+<p class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Prefix Load</p>
+<div class="flex items-center justify-between">
+<span class="text-3xl font-bold">84%</span>
+<div class="p-2 bg-orange-500/10 text-orange-500 rounded-lg">
+<span class="material-symbols-outlined">speed</span>
+</div>
+</div>
+<div class="w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full mt-3 overflow-hidden">
+<div class="bg-orange-500 h-full w-[84%]"></div>
+</div>
+</div>
+</div>
+</main>
+<footer class="mt-12 py-8 border-t border-slate-200 dark:border-slate-800 text-center">
+<p class="text-sm text-slate-500">LibreNMS Network Monitoring Platform • v23.11.0</p>
+</footer>
+</div>
+</body></html>

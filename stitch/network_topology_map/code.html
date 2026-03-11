@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#13a4ec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101c22",
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+        }
+        .map-grid {
+            background-image: radial-gradient(circle, rgba(19, 164, 236, 0.1) 1px, transparent 1px);
+            background-size: 30px 30px;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 font-display min-h-screen flex flex-col">
+<header class="flex items-center justify-between whitespace-nowrap border-b border-solid border-primary/20 px-6 py-3 bg-background-light dark:bg-background-dark sticky top-0 z-50">
+<div class="flex items-center gap-8">
+<div class="flex items-center gap-4 text-primary">
+<div class="size-8 flex items-center justify-center rounded-lg bg-primary/10">
+<span class="material-symbols-outlined text-primary text-2xl">hub</span>
+</div>
+<h2 class="text-slate-900 dark:text-slate-100 text-lg font-bold leading-tight tracking-tight">LibreNMS <span class="text-primary">BGP Topology</span></h2>
+</div>
+<nav class="hidden md:flex items-center gap-6">
+<a class="text-slate-600 dark:text-slate-400 hover:text-primary transition-colors text-sm font-medium" href="#">Dashboard</a>
+<a class="text-slate-600 dark:text-slate-400 hover:text-primary transition-colors text-sm font-medium" href="#">Inventory</a>
+<a class="text-primary text-sm font-medium border-b-2 border-primary pb-1" href="#">BGP Map</a>
+<a class="text-slate-600 dark:text-slate-400 hover:text-primary transition-colors text-sm font-medium" href="#">Alerts</a>
+</nav>
+</div>
+<div class="flex flex-1 justify-end gap-4">
+<label class="hidden sm:flex flex-col min-w-40 h-10 max-w-64">
+<div class="flex w-full flex-1 items-stretch rounded-lg h-full overflow-hidden bg-primary/5 border border-primary/20 focus-within:border-primary transition-all">
+<div class="text-slate-400 flex items-center justify-center pl-3">
+<span class="material-symbols-outlined text-xl">search</span>
+</div>
+<input class="form-input flex w-full min-w-0 flex-1 border-none bg-transparent focus:ring-0 text-sm placeholder:text-slate-500" placeholder="Search Global AS..." value=""/>
+</div>
+</label>
+<div class="flex items-center gap-2">
+<button class="size-10 flex items-center justify-center rounded-full bg-primary/10 text-primary">
+<span class="material-symbols-outlined text-xl">notifications</span>
+</button>
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10 border-2 border-primary/30" data-alt="User avatar placeholder with abstract geometric pattern" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuD2e_koLnjAqnPZDOtz4QiYd-veYD1RQgBDqPBI5RU3KoMCe94CR6CqR7EGAPQl_28vqoDXMBkZ1gHS6Ur99hSYooxABhxKYM0R8b1uWW_imjK6SLsyZyXFNhu7eBQeNckR776Qd-7O2eMvmHCfPhFOd5ZzlYDHXbtTSbSoN8ZmiR3puFRHZeDjC37asFzD0Igoh4Jhsu-qnJ1E4aJHVsmRy3WV4SYpVSd8f38iKZbwAKIxK5YJisWXdZYCpUsqQDCE3SnkhflzPg");'></div>
+</div>
+</div>
+</header>
+<main class="flex-1 flex overflow-hidden">
+<aside class="w-80 border-r border-primary/10 bg-background-light dark:bg-background-dark/50 flex flex-col shrink-0 overflow-y-auto">
+<div class="p-6 space-y-6">
+<div>
+<h3 class="text-sm font-bold uppercase tracking-widest text-primary mb-4">Topology Explorer</h3>
+<div class="space-y-1">
+<div class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-primary text-white shadow-lg shadow-primary/20 cursor-pointer">
+<span class="material-symbols-outlined text-xl">map</span>
+<p class="text-sm font-semibold">Network Mesh View</p>
+</div>
+<div class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-primary/10 transition-colors cursor-pointer group">
+<span class="material-symbols-outlined text-xl text-slate-400 group-hover:text-primary">language</span>
+<p class="text-sm font-medium text-slate-600 dark:text-slate-300">AS Geo-Explorer</p>
+</div>
+<div class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-primary/10 transition-colors cursor-pointer group">
+<span class="material-symbols-outlined text-xl text-slate-400 group-hover:text-primary">cable</span>
+<p class="text-sm font-medium text-slate-600 dark:text-slate-300">PeeringDB Metrics</p>
+</div>
+</div>
+</div>
+<div class="pt-4 border-t border-primary/10">
+<h3 class="text-xs font-bold uppercase tracking-widest text-slate-500 mb-4">Active Filters</h3>
+<div class="space-y-3">
+<details class="group bg-primary/5 rounded-lg border border-primary/10" open="">
+<summary class="flex cursor-pointer items-center justify-between p-3">
+<span class="text-sm font-semibold flex items-center gap-2">
+<span class="material-symbols-outlined text-sm text-primary">public</span>
+                                    Region Selection
+                                </span>
+<span class="material-symbols-outlined text-lg group-open:rotate-180 transition-transform">expand_more</span>
+</summary>
+<div class="p-3 pt-0 text-xs text-slate-500 flex flex-wrap gap-2">
+<span class="px-2 py-1 rounded bg-primary/20 text-primary border border-primary/30">North America</span>
+<span class="px-2 py-1 rounded bg-slate-200 dark:bg-slate-800 border border-transparent">Europe</span>
+<span class="px-2 py-1 rounded bg-slate-200 dark:bg-slate-800 border border-transparent">Asia-Pacific</span>
+<span class="px-2 py-1 rounded bg-slate-200 dark:bg-slate-800 border border-transparent">LATAM</span>
+</div>
+</details>
+<details class="group bg-primary/5 rounded-lg border border-primary/10">
+<summary class="flex cursor-pointer items-center justify-between p-3">
+<span class="text-sm font-semibold flex items-center gap-2">
+<span class="material-symbols-outlined text-sm text-primary">settings_ethernet</span>
+                                    Connection Type
+                                </span>
+<span class="material-symbols-outlined text-lg group-open:rotate-180 transition-transform">expand_more</span>
+</summary>
+<div class="p-3 pt-0 space-y-2">
+<label class="flex items-center gap-2 text-xs">
+<input checked="" class="rounded border-primary/30 text-primary focus:ring-primary/20 bg-background-dark" type="checkbox"/>
+                                    Full Transit
+                                </label>
+<label class="flex items-center gap-2 text-xs">
+<input checked="" class="rounded border-primary/30 text-primary focus:ring-primary/20 bg-background-dark" type="checkbox"/>
+                                    Public Peering (IXP)
+                                </label>
+<label class="flex items-center gap-2 text-xs">
+<input class="rounded border-primary/30 text-primary focus:ring-primary/20 bg-background-dark" type="checkbox"/>
+                                    Private Interconnect
+                                </label>
+</div>
+</details>
+<details class="group bg-primary/5 rounded-lg border border-primary/10">
+<summary class="flex cursor-pointer items-center justify-between p-3">
+<span class="text-sm font-semibold flex items-center gap-2">
+<span class="material-symbols-outlined text-sm text-primary">speed</span>
+                                    Latency Range
+                                </span>
+<span class="material-symbols-outlined text-lg group-open:rotate-180 transition-transform">expand_more</span>
+</summary>
+<div class="p-4 pt-0">
+<input class="w-full accent-primary bg-slate-700 h-1.5 rounded-lg appearance-none cursor-pointer" type="range"/>
+<div class="flex justify-between text-[10px] mt-2 text-slate-500">
+<span>0ms</span>
+<span>500ms+</span>
+</div>
+</div>
+</details>
+</div>
+</div>
+<div class="pt-4 border-t border-primary/10">
+<h3 class="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">Live Status</h3>
+<div class="bg-emerald-500/10 border border-emerald-500/20 p-3 rounded-lg flex items-center gap-3">
+<span class="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+<div class="flex-1">
+<p class="text-xs font-bold text-emerald-500">Systems Operational</p>
+<p class="text-[10px] text-emerald-500/70">Monitoring 4,129 BGP Sessions</p>
+</div>
+</div>
+</div>
+</div>
+</aside>
+<section class="flex-1 relative flex flex-col bg-slate-200 dark:bg-[#0c1418] map-grid">
+<div class="absolute inset-0 overflow-hidden pointer-events-none opacity-40">
+<svg height="100%" width="100%" xmlns="http://www.w3.org/2000/svg">
+<path d="M 200,300 Q 400,250 600,400" fill="none" stroke="#13a4ec" stroke-dasharray="5,5" stroke-width="2"></path>
+<path d="M 600,400 Q 800,450 1000,300" fill="none" stroke="#13a4ec" stroke-width="2"></path>
+<path d="M 300,600 Q 500,550 700,700" fill="none" stroke="#13a4ec" stroke-opacity="0.6" stroke-width="3"></path>
+<path d="M 600,400 Q 300,600 200,300" fill="none" stroke="#13a4ec" stroke-width="1.5"></path>
+<circle cx="200" cy="300" fill="#13a4ec" fill-opacity="0.8" r="10"></circle>
+<circle cx="600" cy="400" fill="#13a4ec" r="15"></circle>
+<circle cx="1000" cy="300" fill="#13a4ec" fill-opacity="0.6" r="8"></circle>
+<circle cx="300" cy="600" fill="#13a4ec" r="12"></circle>
+</svg>
+</div>
+<div class="p-6 flex justify-between items-start relative z-10">
+<div class="bg-background-light/90 dark:bg-background-dark/90 backdrop-blur-md p-4 rounded-xl border border-primary/20 shadow-2xl">
+<h1 class="text-xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                        Global Peering Matrix
+                        <span class="text-[10px] bg-primary/20 text-primary px-2 py-0.5 rounded-full uppercase tracking-tighter">Live</span>
+</h1>
+<p class="text-xs text-slate-500 mt-1">Showing 158 Autonomous Systems in selected view</p>
+<div class="flex gap-4 mt-4">
+<div class="flex flex-col">
+<span class="text-xs text-slate-400">Total ASN</span>
+<span class="text-lg font-bold">12,492</span>
+</div>
+<div class="w-px h-8 bg-primary/20"></div>
+<div class="flex flex-col">
+<span class="text-xs text-slate-400">Upstream</span>
+<span class="text-lg font-bold text-primary">42</span>
+</div>
+<div class="w-px h-8 bg-primary/20"></div>
+<div class="flex flex-col">
+<span class="text-xs text-slate-400">Peers</span>
+<span class="text-lg font-bold">1,833</span>
+</div>
+</div>
+</div>
+<div class="flex flex-col gap-2">
+<div class="flex flex-col bg-background-light/90 dark:bg-background-dark/90 rounded-lg overflow-hidden border border-primary/20 shadow-xl">
+<button class="p-3 hover:bg-primary/10 transition-colors border-b border-primary/10 text-primary">
+<span class="material-symbols-outlined">add</span>
+</button>
+<button class="p-3 hover:bg-primary/10 transition-colors text-primary">
+<span class="material-symbols-outlined">remove</span>
+</button>
+</div>
+<button class="p-3 bg-background-light/90 dark:bg-background-dark/90 rounded-lg border border-primary/20 shadow-xl text-primary hover:bg-primary/10 transition-colors">
+<span class="material-symbols-outlined">my_location</span>
+</button>
+<button class="p-3 bg-background-light/90 dark:bg-background-dark/90 rounded-lg border border-primary/20 shadow-xl text-primary hover:bg-primary/10 transition-colors">
+<span class="material-symbols-outlined">layers</span>
+</button>
+</div>
+</div>
+<div class="mt-auto p-6 relative z-10">
+<div class="flex gap-3 overflow-x-auto pb-4 no-scrollbar">
+<div class="flex-none bg-background-light/90 dark:bg-background-dark/90 backdrop-blur-md p-3 rounded-lg border border-primary/30 flex items-center gap-3 min-w-[200px] shadow-lg">
+<div class="size-10 rounded-lg bg-primary/20 flex items-center justify-center">
+<span class="material-symbols-outlined text-primary">router</span>
+</div>
+<div>
+<p class="text-[10px] text-slate-500 uppercase font-bold">Core Node</p>
+<p class="text-sm font-bold">AS15169 (Google)</p>
+<p class="text-[10px] text-emerald-500 flex items-center gap-1">
+<span class="size-1 bg-emerald-500 rounded-full"></span> 248 Active Sessions
+                            </p>
+</div>
+</div>
+<div class="flex-none bg-background-light/90 dark:bg-background-dark/90 backdrop-blur-md p-3 rounded-lg border border-primary/10 flex items-center gap-3 min-w-[200px] shadow-lg">
+<div class="size-10 rounded-lg bg-slate-500/20 flex items-center justify-center">
+<span class="material-symbols-outlined text-slate-400">router</span>
+</div>
+<div>
+<p class="text-[10px] text-slate-500 uppercase font-bold">Transit Partner</p>
+<p class="text-sm font-bold">AS3356 (Lumen)</p>
+<p class="text-[10px] text-emerald-500 flex items-center gap-1">
+<span class="size-1 bg-emerald-500 rounded-full"></span> 1,202 Active Sessions
+                            </p>
+</div>
+</div>
+<div class="flex-none bg-background-light/90 dark:bg-background-dark/90 backdrop-blur-md p-3 rounded-lg border border-primary/10 flex items-center gap-3 min-w-[200px] shadow-lg">
+<div class="size-10 rounded-lg bg-slate-500/20 flex items-center justify-center">
+<span class="material-symbols-outlined text-slate-400">router</span>
+</div>
+<div>
+<p class="text-[10px] text-slate-500 uppercase font-bold">IXP Peer</p>
+<p class="text-sm font-bold">AS16509 (Amazon)</p>
+<p class="text-[10px] text-emerald-500 flex items-center gap-1">
+<span class="size-1 bg-emerald-500 rounded-full"></span> 891 Active Sessions
+                            </p>
+</div>
+</div>
+</div>
+</div>
+<div class="absolute bottom-6 right-6 z-10 bg-background-light/90 dark:bg-background-dark/90 backdrop-blur-md p-3 rounded-lg border border-primary/20 text-[10px] text-slate-500 flex flex-col gap-2">
+<div class="flex items-center gap-2">
+<span class="size-2 bg-primary rounded-full"></span> Transit Connection
+                </div>
+<div class="flex items-center gap-2">
+<span class="size-2 bg-primary/40 rounded-full"></span> Peering Session
+                </div>
+<div class="flex items-center gap-2">
+<span class="size-2 border border-primary border-dashed rounded-full"></span> Predicted Path
+                </div>
+</div>
+</section>
+</main>
+<footer class="h-10 border-t border-primary/10 bg-background-light dark:bg-background-dark flex items-center px-6 justify-between text-[10px] text-slate-500 uppercase tracking-widest font-bold">
+<div class="flex gap-6">
+<span>Lat: 34.0522° N, Lon: 118.2437° W</span>
+<span class="text-primary/60">Updated: 45s ago</span>
+</div>
+<div class="flex gap-4">
+<a class="hover:text-primary transition-colors" href="#">API Access</a>
+<a class="hover:text-primary transition-colors" href="#">Documentation</a>
+<span class="text-slate-700">v2.4.12-Stable</span>
+</div>
+</footer>
+</body></html>

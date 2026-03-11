@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>BGP Peering Details - LibreNMS</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#13a4ec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101c22",
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 min-h-screen">
+<div class="relative flex h-auto min-h-screen w-full flex-col overflow-x-hidden">
+<div class="layout-container flex h-full grow flex-col">
+<!-- TopNavBar -->
+<header class="flex items-center justify-between whitespace-nowrap border-b border-solid border-primary/20 bg-background-light dark:bg-background-dark px-10 py-3 sticky top-0 z-50">
+<div class="flex items-center gap-8">
+<div class="flex items-center gap-4 text-primary">
+<div class="size-6">
+<span class="material-symbols-outlined text-3xl">hub</span>
+</div>
+<h2 class="text-slate-900 dark:text-slate-100 text-xl font-bold leading-tight tracking-[-0.015em]">LibreNMS</h2>
+</div>
+<nav class="hidden md:flex items-center gap-9">
+<a class="text-slate-600 dark:text-slate-400 hover:text-primary dark:hover:text-primary text-sm font-medium transition-colors" href="#">Dashboard</a>
+<a class="text-slate-600 dark:text-slate-400 hover:text-primary dark:hover:text-primary text-sm font-medium transition-colors" href="#">Devices</a>
+<a class="text-slate-600 dark:text-slate-400 hover:text-primary dark:hover:text-primary text-sm font-medium transition-colors" href="#">Ports</a>
+<a class="text-primary text-sm font-semibold border-b-2 border-primary pb-1" href="#">BGP</a>
+<a class="text-slate-600 dark:text-slate-400 hover:text-primary dark:hover:text-primary text-sm font-medium transition-colors" href="#">Alerts</a>
+</nav>
+</div>
+<div class="flex flex-1 justify-end gap-4 md:gap-8">
+<label class="hidden sm:flex flex-col min-w-40 !h-10 max-w-64">
+<div class="flex w-full flex-1 items-stretch rounded-lg h-full overflow-hidden border border-primary/10 bg-slate-200/50 dark:bg-primary/5">
+<div class="text-slate-500 flex items-center justify-center pl-4">
+<span class="material-symbols-outlined">search</span>
+</div>
+<input class="form-input flex w-full min-w-0 flex-1 border-none bg-transparent text-slate-900 dark:text-slate-100 focus:ring-0 placeholder:text-slate-500 text-base font-normal px-2" placeholder="Search prefix or AS..." value=""/>
+</div>
+</label>
+<div class="flex gap-2">
+<button class="flex items-center justify-center rounded-lg h-10 w-10 bg-slate-200 dark:bg-primary/10 text-slate-900 dark:text-slate-100 hover:bg-primary/20 transition-all">
+<span class="material-symbols-outlined text-xl">notifications</span>
+</button>
+<button class="flex items-center justify-center rounded-lg h-10 w-10 bg-slate-200 dark:bg-primary/10 text-slate-900 dark:text-slate-100 hover:bg-primary/20 transition-all">
+<span class="material-symbols-outlined text-xl">settings</span>
+</button>
+</div>
+<div class="bg-primary/20 border border-primary/30 aspect-square bg-cover rounded-full size-10" data-alt="User profile avatar gradient" style="background-image: linear-gradient(135deg, #13a4ec 0%, #005a8d 100%);"></div>
+</div>
+</header>
+<main class="flex-1 flex flex-col md:flex-row">
+<!-- Sidebar -->
+<aside class="w-full md:w-64 border-r border-primary/10 bg-background-light dark:bg-background-dark p-4 flex flex-col gap-6">
+<div class="flex flex-col gap-4">
+<div class="flex items-center gap-3 p-2 bg-primary/5 rounded-xl border border-primary/10">
+<div class="bg-primary/20 text-primary p-2 rounded-lg">
+<span class="material-symbols-outlined">router</span>
+</div>
+<div class="flex flex-col">
+<h1 class="text-slate-900 dark:text-slate-100 text-base font-bold">Router-01-NYC</h1>
+<p class="text-slate-500 text-xs font-mono">10.255.0.1</p>
+</div>
+</div>
+<nav class="flex flex-col gap-1">
+<a class="flex items-center gap-3 px-3 py-2 text-slate-600 dark:text-slate-400 hover:bg-primary/10 rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<p class="text-sm font-medium">Overview</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-primary bg-primary/10 rounded-lg font-semibold" href="#">
+<span class="material-symbols-outlined">monitoring</span>
+<p class="text-sm">BGP Sessions</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-slate-600 dark:text-slate-400 hover:bg-primary/10 rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined">description</span>
+<p class="text-sm font-medium">Logs</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-slate-600 dark:text-slate-400 hover:bg-primary/10 rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined">warning</span>
+<p class="text-sm font-medium">Alerts</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-slate-600 dark:text-slate-400 hover:bg-primary/10 rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined">inventory_2</span>
+<p class="text-sm font-medium">Inventory</p>
+</a>
+</nav>
+</div>
+<div class="mt-auto p-4 bg-primary/5 rounded-xl border border-primary/10">
+<p class="text-xs text-slate-500 uppercase tracking-wider font-bold mb-2">Session Health</p>
+<div class="flex items-center justify-between text-sm">
+<span class="text-slate-400">Status</span>
+<span class="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 rounded text-xs font-bold uppercase">Established</span>
+</div>
+<div class="mt-2 w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+<div class="bg-emerald-500 h-full w-[99.9%]"></div>
+</div>
+</div>
+</aside>
+<!-- Content Area -->
+<div class="flex-1 overflow-y-auto">
+<!-- Breadcrumbs -->
+<div class="flex flex-wrap gap-2 p-4 text-sm bg-primary/5">
+<a class="text-primary hover:underline font-medium" href="#">Devices</a>
+<span class="text-slate-500">/</span>
+<a class="text-primary hover:underline font-medium" href="#">Router-01-NYC</a>
+<span class="text-slate-500">/</span>
+<span class="text-slate-900 dark:text-slate-100 font-semibold tracking-tight">Peer: AS65001 (Transit-Level3)</span>
+</div>
+<!-- Header Section -->
+<div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 p-6 border-b border-primary/10">
+<div class="flex flex-col gap-2">
+<div class="flex items-center gap-3">
+<h2 class="text-slate-900 dark:text-slate-100 text-3xl font-black leading-tight tracking-tight">AS65001 Peering Details</h2>
+<span class="material-symbols-outlined text-emerald-500">verified</span>
+</div>
+<p class="text-slate-500 text-base font-medium flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">public</span> Remote Peer: 192.168.1.1 
+                                <span class="text-primary/50 mx-2">|</span>
+<span class="material-symbols-outlined text-sm">timer</span> Uptime: 42d 12h 15m
+                            </p>
+</div>
+<div class="flex gap-3">
+<button class="flex items-center gap-2 bg-slate-200 dark:bg-primary/10 hover:bg-primary/20 text-slate-900 dark:text-slate-100 px-4 py-2 rounded-lg font-bold text-sm transition-all border border-primary/20">
+<span class="material-symbols-outlined">refresh</span>
+                                Reset Stats
+                            </button>
+<button class="flex items-center gap-2 bg-primary text-white hover:bg-primary/90 px-4 py-2 rounded-lg font-bold text-sm transition-all shadow-lg shadow-primary/20">
+<span class="material-symbols-outlined">edit</span>
+                                Edit Peer
+                            </button>
+</div>
+</div>
+<!-- Filter Controls -->
+<div class="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 bg-primary/5">
+<div class="flex flex-col gap-1.5">
+<span class="text-xs font-bold text-slate-500 uppercase tracking-widest">Time Range</span>
+<button class="flex items-center justify-between gap-2 rounded-lg bg-background-light dark:bg-slate-900/50 border border-primary/20 px-4 py-2.5 text-sm font-medium">
+                                Last 24 Hours
+                                <span class="material-symbols-outlined">calendar_month</span>
+</button>
+</div>
+<div class="flex flex-col gap-1.5">
+<span class="text-xs font-bold text-slate-500 uppercase tracking-widest">Address Family</span>
+<button class="flex items-center justify-between gap-2 rounded-lg bg-background-light dark:bg-slate-900/50 border border-primary/20 px-4 py-2.5 text-sm font-medium">
+                                IPv4 Unicast
+                                <span class="material-symbols-outlined">keyboard_arrow_down</span>
+</button>
+</div>
+<div class="flex flex-col gap-1.5">
+<span class="text-xs font-bold text-slate-500 uppercase tracking-widest">RIB Table</span>
+<button class="flex items-center justify-between gap-2 rounded-lg bg-background-light dark:bg-slate-900/50 border border-primary/20 px-4 py-2.5 text-sm font-medium">
+                                Local RIB
+                                <span class="material-symbols-outlined">table_chart</span>
+</button>
+</div>
+<div class="flex flex-col gap-1.5">
+<span class="text-xs font-bold text-slate-500 uppercase tracking-widest">Prefix Filter</span>
+<div class="relative">
+<input class="w-full rounded-lg bg-background-light dark:bg-slate-900/50 border border-primary/20 px-4 py-2.5 text-sm focus:ring-primary focus:border-primary" placeholder="10.0.0.0/24" type="text"/>
+<span class="material-symbols-outlined absolute right-3 top-2.5 text-slate-500">filter_alt</span>
+</div>
+</div>
+</div>
+<!-- Charts Grid -->
+<div class="p-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+<!-- Latency Graph -->
+<div class="bg-background-light dark:bg-slate-900/30 rounded-xl border border-primary/10 p-6 flex flex-col gap-4">
+<div class="flex justify-between items-center">
+<h3 class="text-lg font-bold flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">speed</span>
+                                    Session Latency (ms)
+                                </h3>
+<span class="text-xs text-slate-500">Current: 14.2ms</span>
+</div>
+<div class="h-48 relative flex items-end gap-1 px-2 overflow-hidden bg-primary/5 rounded-lg">
+<div class="flex-1 bg-primary/30 h-[20%]" data-alt="Small bar graph segment"></div>
+<div class="flex-1 bg-primary/30 h-[22%]" data-alt="Small bar graph segment"></div>
+<div class="flex-1 bg-primary/30 h-[18%]" data-alt="Small bar graph segment"></div>
+<div class="flex-1 bg-primary/40 h-[30%]" data-alt="Small bar graph segment"></div>
+<div class="flex-1 bg-primary/40 h-[35%]" data-alt="Small bar graph segment"></div>
+<div class="flex-1 bg-primary/30 h-[25%]" data-alt="Small bar graph segment"></div>
+<div class="flex-1 bg-primary/30 h-[28%]" data-alt="Small bar graph segment"></div>
+<div class="flex-1 bg-primary/60 h-[50%]" data-alt="Small bar graph segment"></div>
+<div class="flex-1 bg-primary/40 h-[40%]" data-alt="Small bar graph segment"></div>
+<div class="flex-1 bg-primary/30 h-[20%]" data-alt="Small bar graph segment"></div>
+<div class="flex-1 bg-primary/20 h-[10%]" data-alt="Small bar graph segment"></div>
+<div class="flex-1 bg-primary/30 h-[15%]" data-alt="Small bar graph segment"></div>
+<div class="flex-1 bg-primary/50 h-[45%]" data-alt="Small bar graph segment"></div>
+<div class="flex-1 bg-primary/40 h-[38%]" data-alt="Small bar graph segment"></div>
+<div class="flex-1 bg-primary/30 h-[25%]" data-alt="Small bar graph segment"></div>
+<div class="absolute inset-x-0 bottom-0 h-px bg-primary/20"></div>
+</div>
+</div>
+<!-- Prefix Chart -->
+<div class="bg-background-light dark:bg-slate-900/30 rounded-xl border border-primary/10 p-6 flex flex-col gap-4">
+<div class="flex justify-between items-center">
+<h3 class="text-lg font-bold flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">list_alt</span>
+                                    Prefixes Received/Adv
+                                </h3>
+<div class="flex gap-3 text-[10px] font-bold uppercase tracking-tighter">
+<div class="flex items-center gap-1"><span class="size-2 rounded-full bg-primary"></span> Received</div>
+<div class="flex items-center gap-1"><span class="size-2 rounded-full bg-slate-500"></span> Advertised</div>
+</div>
+</div>
+<div class="h-48 relative overflow-hidden bg-primary/5 rounded-lg flex items-center justify-center">
+<!-- Abstract visual representation of a chart area -->
+<div class="absolute inset-0 flex items-center justify-around px-4">
+<div class="w-[45%] h-[70%] bg-primary/20 rounded-t-lg border-x border-t border-primary/40 flex items-end justify-center p-2">
+<span class="text-primary font-bold text-xl">1.2M</span>
+</div>
+<div class="w-[45%] h-[30%] bg-slate-500/20 rounded-t-lg border-x border-t border-slate-500/40 flex items-end justify-center p-2">
+<span class="text-slate-500 font-bold text-xl">45k</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- BGP State Timeline -->
+<div class="px-6 mb-6">
+<div class="bg-background-light dark:bg-slate-900/30 rounded-xl border border-primary/10 p-6">
+<h3 class="text-lg font-bold mb-6 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">history</span>
+                                BGP Session State Timeline (Last 30 Days)
+                            </h3>
+<div class="flex w-full h-8 gap-0.5 rounded-lg overflow-hidden">
+<div class="flex-[80] bg-emerald-500 h-full hover:opacity-80 transition-opacity cursor-help" title="Established (24 days)"></div>
+<div class="flex-[1] bg-rose-500 h-full hover:opacity-80 transition-opacity cursor-help" title="Idle (3 hours)"></div>
+<div class="flex-[19] bg-emerald-500 h-full hover:opacity-80 transition-opacity cursor-help" title="Established (5 days)"></div>
+</div>
+<div class="flex justify-between mt-3 text-xs text-slate-500 font-medium">
+<span>30 days ago</span>
+<span class="text-emerald-500">99.98% Uptime</span>
+<span>Today</span>
+</div>
+</div>
+</div>
+<!-- Details Table Section -->
+<div class="px-6 mb-12">
+<div class="bg-background-light dark:bg-slate-900/30 rounded-xl border border-primary/10 overflow-hidden">
+<div class="flex justify-between items-center p-6 border-b border-primary/10">
+<h3 class="text-lg font-bold">Route Flap Details</h3>
+<button class="text-primary text-sm font-bold flex items-center gap-1">
+                                    View Full History
+                                    <span class="material-symbols-outlined text-sm">open_in_new</span>
+</button>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left">
+<thead>
+<tr class="bg-primary/5 text-slate-500 text-xs font-bold uppercase tracking-wider">
+<th class="px-6 py-4">Prefix</th>
+<th class="px-6 py-4">Event Type</th>
+<th class="px-6 py-4">Flaps</th>
+<th class="px-6 py-4">Last Event</th>
+<th class="px-6 py-4">Action</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-primary/10">
+<tr class="hover:bg-primary/5 transition-colors">
+<td class="px-6 py-4 text-sm font-mono text-primary">192.168.50.0/24</td>
+<td class="px-6 py-4 text-sm">
+<span class="px-2 py-1 bg-amber-500/10 text-amber-500 rounded font-bold text-[10px] uppercase">Withdrawal</span>
+</td>
+<td class="px-6 py-4 text-sm font-bold">12</td>
+<td class="px-6 py-4 text-sm text-slate-400">2 mins ago</td>
+<td class="px-6 py-4">
+<button class="text-primary hover:text-primary/70 transition-colors">
+<span class="material-symbols-outlined">analytics</span>
+</button>
+</td>
+</tr>
+<tr class="hover:bg-primary/5 transition-colors">
+<td class="px-6 py-4 text-sm font-mono text-primary">172.16.0.0/16</td>
+<td class="px-6 py-4 text-sm">
+<span class="px-2 py-1 bg-emerald-500/10 text-emerald-500 rounded font-bold text-[10px] uppercase">Announcement</span>
+</td>
+<td class="px-6 py-4 text-sm font-bold">1</td>
+<td class="px-6 py-4 text-sm text-slate-400">14 hours ago</td>
+<td class="px-6 py-4">
+<button class="text-primary hover:text-primary/70 transition-colors">
+<span class="material-symbols-outlined">analytics</span>
+</button>
+</td>
+</tr>
+<tr class="hover:bg-primary/5 transition-colors">
+<td class="px-6 py-4 text-sm font-mono text-primary">8.8.8.0/24</td>
+<td class="px-6 py-4 text-sm">
+<span class="px-2 py-1 bg-rose-500/10 text-rose-500 rounded font-bold text-[10px] uppercase">Path Change</span>
+</td>
+<td class="px-6 py-4 text-sm font-bold">42</td>
+<td class="px-6 py-4 text-sm text-slate-400">Just now</td>
+<td class="px-6 py-4">
+<button class="text-primary hover:text-primary/70 transition-colors">
+<span class="material-symbols-outlined">analytics</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+</div>
+</body></html>

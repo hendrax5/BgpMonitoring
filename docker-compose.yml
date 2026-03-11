@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  librenms-dashboard:
+    build: .
+    container_name: librenms_dashboard
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=file:/app/data/bgp_watcher.db
+    volumes:
+      - db_data:/app/data
+
+volumes:
+  db_data:
