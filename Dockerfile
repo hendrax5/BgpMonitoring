@@ -36,7 +36,7 @@ RUN apk add --no-cache openssl
 # You only need these for production
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/src/worker ./src/worker
+COPY --from=builder /app/src ./src
 COPY --from=builder /app/package.json ./package.json
 
 # Copy Next.js standalone build
