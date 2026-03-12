@@ -43,7 +43,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
 # Install production dependencies for the worker since Next.js standalone doesn't include them
-RUN npm install --omit=dev && npm install tsx
+RUN npm install tsx node-cron @prisma/client ssh2
 
 EXPOSE 3000
 
