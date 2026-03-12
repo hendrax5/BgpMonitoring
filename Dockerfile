@@ -43,8 +43,8 @@ COPY --from=builder /app/package.json ./package.json
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# Install tsx globally
-RUN npm install -g tsx
+# Install tsx and prisma globally
+RUN npm install -g tsx prisma@6
 
 # Install production dependencies for the worker securely in a separate directory so it doesn't destruct Next.js node_modules
 RUN mkdir -p /app/worker_deps && cd /app/worker_deps && npm init -y && npm install node-cron ssh2 @prisma/client

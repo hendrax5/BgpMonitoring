@@ -5,7 +5,7 @@
 echo "Running Prisma DB Push..."
 mkdir -p /app/data
 chmod 777 /app/data
-npx prisma@6 db push --accept-data-loss
+prisma db push --accept-data-loss
 
 # Start the background worker script via tsx in the background
 echo "Starting LibreNMS Background Sync Worker..."

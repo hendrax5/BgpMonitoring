@@ -5,6 +5,8 @@ import { prisma } from '../lib/prisma';
 const CRON_SCHEDULE = '*/1 * * * *'; // Every minute for development (change to */5 for production)
 const TELEGRAM_MOCK_LOG = true;
 
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 
 
 async function lookupAsnName(asn: bigint): Promise<string> {
@@ -270,6 +272,8 @@ async function runWorker() {
                     console.error(`❌ DB error while processing session for ${session.deviceName} (${session.peerIp}):`, err.message);
                 }
             }
+            // Sleep briefly to yield SQLite lock to the main web process
+            await sleep(20);
         }
         console.log(`✅ Completed ${srv.name}: Processed ${activeSessions.length} sessions.`);
     }
