@@ -24,6 +24,7 @@ ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 ENV DATABASE_URL="file:///app/data/bgp_watcher.db"
+ENV NODE_PATH="/app/worker_deps/node_modules"
 
 # Pre-create the data directory and touch the db file so Prisma doesn't crash on initial boot before volume fills
 RUN mkdir -p /app/data && touch /app/data/bgp_watcher.db
@@ -42,9 +43,11 @@ COPY --from=builder /app/package.json ./package.json
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# Install production dependencies for the worker since Next.js standalone doesn't include them
+# Install tsx globally
 RUN npm install -g tsx
-RUN npm install node-cron @prisma/client ssh2
+
+# Install production dependencies for the worker securely in a separate directory so it doesn't destruct Next.js node_modules
+RUN mkdir -p /app/worker_deps && cd /app/worker_deps && npm init -y && npm install node-cron ssh2 @prisma/client
 
 EXPOSE 3000
 
