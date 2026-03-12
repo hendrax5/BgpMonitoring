@@ -10,7 +10,7 @@ generator client {
 
 datasource db {
   provider = "sqlite"
-  url      = env("DATABASE_URL") // Will be set to "file:./bgp_watcher.db" in Docker
+  url      = "file:///app/data/bgp_watcher.db"
 }
 
 model AsnDictionary {

@@ -9,7 +9,7 @@ services:
       - "3000:3000"
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=file:/app/data/bgp_watcher.db
+      - DATABASE_URL=file:///app/data/bgp_watcher.db
     volumes:
       - db_data:/app/data
 
