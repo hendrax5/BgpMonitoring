@@ -172,16 +172,17 @@ async function runWorker() {
             const isUp = session.bgpState === 'Established';
             const orgName = await lookupAsnName(session.remoteAsn);
 
-            // Check previous known state in cache
-            const existingState = await prisma.bgpCurrentState.findUnique({
-                where: {
-                    serverName_deviceId_peerIp: {
-                        serverName: session.serverName,
-                        deviceId: session.deviceId,
-                        peerIp: session.peerIp
+            try {
+                // Check previous known state in cache
+                const existingState = await prisma.bgpCurrentState.findUnique({
+                    where: {
+                        serverName_deviceId_peerIp: {
+                            serverName: session.serverName,
+                            deviceId: session.deviceId,
+                            peerIp: session.peerIp
+                        }
                     }
-                }
-            });
+                });
 
             if (!existingState) {
                 // First time seeing this session, just store it
@@ -251,17 +252,24 @@ async function runWorker() {
                 sendTelegramAlert('UP', session, orgName, downtimeDuration ?? undefined);
             }
 
-            // Update Current State Cache
-            await prisma.bgpCurrentState.update({
-                where: { id: existingState.id },
-                data: {
-                    bgpState: session.bgpState,
-                    acceptedPrefixes: session.acceptedPrefixes,
-                    advertisedPrefixes: session.advertisedPrefixes,
-                    stateChangedAt: existingState.bgpState !== session.bgpState ? new Date() : existingState.stateChangedAt,
-                    lastUpdated: new Date()
+                // Update Current State Cache
+                await prisma.bgpCurrentState.update({
+                    where: { id: existingState.id },
+                    data: {
+                        bgpState: session.bgpState,
+                        acceptedPrefixes: session.acceptedPrefixes,
+                        advertisedPrefixes: session.advertisedPrefixes,
+                        stateChangedAt: existingState.bgpState !== session.bgpState ? new Date() : existingState.stateChangedAt,
+                        lastUpdated: new Date()
+                    }
+                });
+            } catch (err: any) {
+                if (err.code === 'P2002') {
+                    console.warn(`⚠️ Skipped duplicate BGP session in API payload for ${session.deviceName} (${session.peerIp})`);
+                } else {
+                    console.error(`❌ DB error while processing session for ${session.deviceName} (${session.peerIp}):`, err.message);
                 }
-            });
+            }
         }
         console.log(`✅ Completed ${srv.name}: Processed ${activeSessions.length} sessions.`);
     }
