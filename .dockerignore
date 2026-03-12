@@ -1,0 +1,11 @@
+Dockerfile
+.dockerignore
+node_modules
+npm-debug.log
+README.md
+.next
+.git
+.env
+data/
+bgp_watcher.db
+bgp_watcher.db-journal
