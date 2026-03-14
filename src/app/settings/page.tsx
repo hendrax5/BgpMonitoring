@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma';
-import { addRouterDevice, updateRouterDevice, deleteRouterDevice } from '@/app/actions/settings';
+import { addRouterDevice, updateRouterDevice, deleteRouterDevice, getTelegramSettings, saveTelegramSettings } from '@/app/actions/settings';
 import { addUser, updateUser, deleteUser } from '@/app/actions/users';
 import SyncButton from '@/app/settings/components/SyncButton';
 
@@ -17,6 +17,8 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     const editUserId = editUser ? parseInt(editUser) : null;
     const users = await prisma.appUser.findMany({ orderBy: { createdAt: 'desc' } });
     const editUserObj = editUserId ? users.find(u => u.id === editUserId) : null;
+
+    const telegram = await getTelegramSettings();
 
     return (
         <div className="min-h-screen">
@@ -341,6 +343,93 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                                     ))}
                                 </tbody>
                             </table>
+                        </div>
+                    </div>
+                </div>
+
+                <hr style={{ borderColor: 'rgba(255,255,255,0.07)' }} />
+
+                {/* Telegram Bot Configuration */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="md:col-span-1">
+                        <div className="card p-5">
+                            <div className="flex items-center gap-2 mb-1">
+                                <span className="material-symbols-outlined text-lg" style={{ color: '#13a4ec' }}>send</span>
+                                <h3 className="font-bold text-white">Telegram Alerts</h3>
+                            </div>
+                            <p className="text-xs mb-5" style={{ color: '#64748b' }}>
+                                Konfigurasi bot Telegram untuk notifikasi BGP DOWN/UP.
+                                {telegram.botToken && (
+                                    <span className="block mt-1 text-[#10b981] font-medium">✓ Bot terkonfigurasi</span>
+                                )}
+                            </p>
+
+                            <form action={async (formData: FormData) => {
+                                'use server';
+                                await saveTelegramSettings(formData);
+                            }} className="space-y-4">
+
+                                <div>
+                                    <label className="block text-xs font-medium mb-1" style={{ color: '#64748b' }}>Bot Token</label>
+                                    <input
+                                        type="password"
+                                        name="telegram_bot_token"
+                                        placeholder={telegram.botToken ? '••••••••••• (sudah tersimpan)' : '123456:ABC-DEF...'}
+                                        className="form-input"
+                                    />
+                                    <p className="text-[10px] mt-1" style={{ color: '#475569' }}>
+                                        Dapatkan dari <a href="https://t.me/BotFather" target="_blank" className="text-[#13a4ec] hover:underline">@BotFather</a>
+                                    </p>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-medium mb-1" style={{ color: '#64748b' }}>Chat ID / Group ID</label>
+                                    <input
+                                        type="text"
+                                        name="telegram_chat_id"
+                                        placeholder={telegram.chatId || '-100123456789'}
+                                        defaultValue={telegram.chatId}
+                                        className="form-input"
+                                    />
+                                    <p className="text-[10px] mt-1" style={{ color: '#475569' }}>
+                                        Cari via <a href="https://t.me/userinfobot" target="_blank" className="text-[#13a4ec] hover:underline">@userinfobot</a> atau dari getUpdates API
+                                    </p>
+                                </div>
+
+                                <button type="submit" className="w-full py-2.5 text-sm font-bold rounded-lg text-white"
+                                    style={{ backgroundColor: '#13a4ec' }}>
+                                    Simpan Konfigurasi
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <div className="md:col-span-2">
+                        <div className="card p-5">
+                            <h3 className="font-bold text-white mb-3">Cara Mendapatkan Chat ID</h3>
+                            <ol className="space-y-3 text-sm" style={{ color: '#94a3b8' }}>
+                                <li className="flex gap-3">
+                                    <span className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold"
+                                        style={{ backgroundColor: 'rgba(19,164,236,0.15)', color: '#13a4ec' }}>1</span>
+                                    <span>Chat ke <span className="text-white font-mono">@BotFather</span>, buat bot baru, dapatkan <span className="text-white">token</span>.</span>
+                                </li>
+                                <li className="flex gap-3">
+                                    <span className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold"
+                                        style={{ backgroundColor: 'rgba(19,164,236,0.15)', color: '#13a4ec' }}>2</span>
+                                    <span>Tambah bot ke grup/channel. Untuk grup, jadikan admin.</span>
+                                </li>
+                                <li className="flex gap-3">
+                                    <span className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold"
+                                        style={{ backgroundColor: 'rgba(19,164,236,0.15)', color: '#13a4ec' }}>3</span>
+                                    <span>Buka URL ini di browser (isi TOKEN dengan token bot kamu):</span>
+                                </li>
+                            </ol>
+                            <code className="block mt-3 p-3 rounded-lg text-xs break-all" style={{ backgroundColor: 'rgba(255,255,255,0.04)', color: '#94a3b8' }}>
+                                https://api.telegram.org/bot<span className="text-[#13a4ec]">TOKEN</span>/getUpdates
+                            </code>
+                            <p className="text-xs mt-3" style={{ color: '#475569' }}>
+                                Cari field <span className="text-white font-mono">&quot;chat&quot;: {'{'}"id": <span className="text-[#10b981]">-100xxxxxxx</span>{'}'}</span> — angka itulah Chat ID-nya.
+                            </p>
                         </div>
                     </div>
                 </div>

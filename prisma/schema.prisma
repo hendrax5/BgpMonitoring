@@ -81,3 +81,12 @@ model AppUser {
 
   @@map("app_users")
 }
+
+// Key-value store for app configuration (editable from UI)
+model AppSettings {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("app_settings")
+}

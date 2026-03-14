@@ -174,3 +174,34 @@ export async function triggerManualSync() {
         return { success: false, message: error.message || 'Failed to synchronize data.' };
     }
 }
+
+export async function getTelegramSettings(): Promise<{ botToken: string; chatId: string }> {
+    const rows = await prisma.appSettings.findMany({
+        where: { key: { in: ['telegram_bot_token', 'telegram_chat_id'] } }
+    });
+    const map = Object.fromEntries(rows.map(r => [r.key, r.value]));
+    return {
+        botToken: map['telegram_bot_token'] || '',
+        chatId: map['telegram_chat_id'] || '',
+    };
+}
+
+export async function saveTelegramSettings(formData: FormData) {
+    const botToken = (formData.get('telegram_bot_token') as string || '').trim();
+    const chatId = (formData.get('telegram_chat_id') as string || '').trim();
+
+    await prisma.$transaction([
+        prisma.appSettings.upsert({
+            where: { key: 'telegram_bot_token' },
+            create: { key: 'telegram_bot_token', value: botToken },
+            update: { value: botToken },
+        }),
+        prisma.appSettings.upsert({
+            where: { key: 'telegram_chat_id' },
+            create: { key: 'telegram_chat_id', value: chatId },
+            update: { value: chatId },
+        }),
+    ]);
+
+    revalidatePath('/settings');
+}

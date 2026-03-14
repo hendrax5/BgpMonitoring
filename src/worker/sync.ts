@@ -8,9 +8,7 @@ import { JuniperPoller } from '../lib/pollers/vendors/juniper';
 import { HuaweiPoller } from '../lib/pollers/vendors/huawei';
 import { BgpPeerState } from '../lib/pollers/base';
 
-const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
-const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || '';
-const TELEGRAM_ENABLED = !!(TELEGRAM_BOT_TOKEN && TELEGRAM_CHAT_ID);
+// Telegram config is read from AppSettings DB at runtime (configurable via Settings UI)
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -52,7 +50,9 @@ export async function lookupAsnName(asn: bigint): Promise<string> {
     return orgName;
 }
 
-export async function sendTelegramAlert(type: 'DOWN' | 'UP', data: any, organizationName: string, duration?: number) {
+export async function sendTelegramAlert(type: 'DOWN' | 'UP', data: any, organizationName: string, duration?: number, botToken?: string, chatId?: string) {
+    const TELEGRAM_ENABLED = !!(botToken && chatId);
+
     const icon = type === 'DOWN' ? '🚨' : '✅';
     const stateLabel = type === 'DOWN' ? 'DOWN' : 'RECOVERED';
     const nowStr = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' });
@@ -70,19 +70,19 @@ export async function sendTelegramAlert(type: 'DOWN' | 'UP', data: any, organiza
     }
 
     if (!TELEGRAM_ENABLED) {
-        console.log(`\n--- [Telegram Alert - No Token Set] ---`);
+        console.log(`\n--- [Telegram Alert - Not Configured] ---`);
         console.log(message.replace(/\*/g, ''));
-        console.log(`---------------------------------------\n`);
+        console.log(`-----------------------------------------\n`);
         return;
     }
 
     try {
-        const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
+        const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
         const res = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                chat_id: TELEGRAM_CHAT_ID,
+                chat_id: chatId,
                 text: message,
                 parse_mode: 'Markdown',
             }),
@@ -101,6 +101,20 @@ export async function sendTelegramAlert(type: 'DOWN' | 'UP', data: any, organiza
 
 export async function forceSyncLibreNMS(triggeredBy: string = 'Worker') {
     console.log(`[${new Date().toISOString()}] Starting Direct SNMP/SSH ${triggeredBy} Polling cycle...`);
+
+    // --- Load Telegram config from DB (set via Settings UI) ---
+    let telegramBotToken = '';
+    let telegramChatId = '';
+    try {
+        const tgSettings = await (prisma as any).appSettings.findMany({
+            where: { key: { in: ['telegram_bot_token', 'telegram_chat_id'] } }
+        });
+        const tgMap = Object.fromEntries(tgSettings.map((r: any) => [r.key, r.value]));
+        telegramBotToken = tgMap['telegram_bot_token'] || '';
+        telegramChatId = tgMap['telegram_chat_id'] || '';
+    } catch {
+        // appSettings table might not exist yet on first run
+    }
 
     let devices: any[] = [];
     try {
@@ -222,7 +236,7 @@ export async function forceSyncLibreNMS(triggeredBy: string = 'Worker') {
                             eventType: 'DOWN'
                         }
                     });
-                    sendTelegramAlert('DOWN', session, orgName).catch(() => {});
+                    sendTelegramAlert('DOWN', session, orgName, undefined, telegramBotToken, telegramChatId).catch(() => {});
                     currentStateObj.stateChangedAt = new Date().toISOString();
                 }
                 else if (!wasUp && isUp) {
@@ -258,7 +272,7 @@ export async function forceSyncLibreNMS(triggeredBy: string = 'Worker') {
                             downtimeDuration
                         }
                     });
-                    sendTelegramAlert('UP', session, orgName, downtimeDuration ?? undefined).catch(() => {});
+                    sendTelegramAlert('UP', session, orgName, downtimeDuration ?? undefined, telegramBotToken, telegramChatId).catch(() => {});
                      currentStateObj.stateChangedAt = new Date().toISOString();
                 }
 
