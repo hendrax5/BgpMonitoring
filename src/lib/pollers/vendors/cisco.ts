@@ -1,60 +1,88 @@
-import { BasePoller, BgpPeerState } from '../base';
+import { BasePoller, BgpPeerState, BgpEventLog } from '../base';
 import { SshPoller } from '../ssh';
 
 export class CiscoPoller extends BasePoller {
     async poll(): Promise<BgpPeerState[]> {
         if (!this.device.sshCredential) {
-            throw new Error(`Cisco polling currently requires SSH credentials but none linked for ${this.device.hostname}`);
+            throw new Error(`Cisco polling requires SSH credentials for ${this.device.hostname}`);
         }
 
         const ssh = new SshPoller(this.device.ipAddress, this.device.sshCredential);
-        const output = await ssh.exec('show ip bgp summary');
-        
+        // Get summary for state/prefixes
+        const summaryOutput = await ssh.exec('show bgp ipv4 unicast summary | include ^[0-9]');
+        // Get neighbors detail for descriptions
+        const neighborsOutput = await ssh.exec('show bgp neighbors | include (BGP neighbor|Description)');
+
+        const descMap = parseCiscoDescriptions(neighborsOutput);
         const peers: BgpPeerState[] = [];
-        
-        // Cisco 'show ip bgp summary' typically looks like:
-        // Neighbor        V           AS MsgRcvd MsgSent   TblVer  InQ OutQ Up/Down  State/PfxRcd
-        // 10.0.0.2        4        65000 123456  123455 1111111    0    0 1w2d          5000
-        // 192.168.1.1     4        65001      0       0       0    0    0 00:00:00 Idle
 
-        const lines = output.split('\n');
-        let headerFound = false;
-
+        const lines = summaryOutput.split('\n');
         for (const line of lines) {
-            if (line.includes('Neighbor') && line.includes('State/PfxRcd')) {
-                headerFound = true;
-                continue;
-            }
+            const parts = line.trim().split(/\s+/);
+            if (parts.length >= 9 && /^[\d.]+$/.test(parts[0])) {
+                const peerIp = parts[0];
+                const remoteAsn = parseInt(parts[2], 10);
+                const stateOrPfx = parts[parts.length - 1];
+                let bgpState = 'Idle';
+                let acceptedPrefixes = 0;
 
-            if (headerFound) {
-                const parts = line.trim().split(/\s+/);
-                // Basic validation: IP, V, AS...
-                if (parts.length >= 10 && parts[0].match(/^[0-9\.]+$/)) {
-                    const peerIp = parts[0];
-                    const remoteAsn = parseInt(parts[2], 10);
-                    const stateOrPfx = parts[9];
-
-                    let bgpState = 'Idle';
-                    let acceptedPrefixes = 0;
-
-                    if (/^\d+$/.test(stateOrPfx)) {
-                        bgpState = 'Established';
-                        acceptedPrefixes = parseInt(stateOrPfx, 10);
-                    } else {
-                        bgpState = stateOrPfx;
-                    }
-
-                    peers.push({
-                        peerIp,
-                        remoteAsn,
-                        bgpState,
-                        acceptedPrefixes,
-                        advertisedPrefixes: 0,
-                    });
+                if (/^\d+$/.test(stateOrPfx)) {
+                    bgpState = 'Established';
+                    acceptedPrefixes = parseInt(stateOrPfx, 10);
+                } else {
+                    bgpState = stateOrPfx;
                 }
+
+                peers.push({
+                    peerIp,
+                    remoteAsn,
+                    bgpState,
+                    acceptedPrefixes,
+                    advertisedPrefixes: 0,
+                    description: descMap.get(peerIp),
+                });
             }
         }
-        
+
         return peers;
     }
+
+    override async fetchBgpLog(): Promise<BgpEventLog[]> {
+        if (!this.device.sshCredential) return [];
+        try {
+            const ssh = new SshPoller(this.device.ipAddress, this.device.sshCredential);
+            const output = await ssh.exec('show logging | include BGP');
+            return parseSyslogBgp(output, 'cisco');
+        } catch {
+            return [];
+        }
+    }
+}
+
+function parseCiscoDescriptions(output: string): Map<string, string> {
+    const map = new Map<string, string>();
+    let currentIp = '';
+    for (const line of output.split('\n')) {
+        const neighborMatch = line.match(/BGP neighbor is ([\d.]+)/);
+        const descMatch = line.match(/Description:\s*(.+)/);
+        if (neighborMatch) currentIp = neighborMatch[1];
+        if (descMatch && currentIp) map.set(currentIp, descMatch[1].trim());
+    }
+    return map;
+}
+
+function parseSyslogBgp(output: string, _vendor: string): BgpEventLog[] {
+    const events: BgpEventLog[] = [];
+    const ipRegex = /([\d.]+)/g;
+    for (const line of output.split('\n')) {
+        if (!line.trim()) continue;
+        const ips = line.match(ipRegex) || [];
+        const peerIp = ips.find(ip => ip.split('.').length === 4 && !ip.startsWith('255')) || '';
+        let eventType: 'UP' | 'DOWN' | 'INFO' = 'INFO';
+        const lower = line.toLowerCase();
+        if (lower.includes('established') || lower.includes('up')) eventType = 'UP';
+        if (lower.includes('down') || lower.includes('reset') || lower.includes('idle')) eventType = 'DOWN';
+        events.push({ timestamp: new Date().toISOString(), peerIp, eventType, message: line.trim() });
+    }
+    return events.slice(-30);
 }

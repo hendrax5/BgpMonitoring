@@ -11,6 +11,8 @@ services:
       - NODE_ENV=production
       - DATABASE_URL=file:///app/data/bgp_watcher.db
       - REDIS_URL=redis://redis:6379
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
     volumes:
       - db_data:/app/data
     depends_on:

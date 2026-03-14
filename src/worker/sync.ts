@@ -200,7 +200,8 @@ export async function forceSyncLibreNMS(triggeredBy: string = 'Worker') {
                 remoteAsn: peer.remoteAsn,
                 bgpState: peer.bgpState,
                 acceptedPrefixes: peer.acceptedPrefixes,
-                advertisedPrefixes: peer.advertisedPrefixes
+                advertisedPrefixes: peer.advertisedPrefixes,
+                peerDescription: peer.description || '',  // ← from vendor poller
             };
 
             const redisKey = `BgpSession:${session.serverName}:${session.deviceId}:${session.peerIp}`;

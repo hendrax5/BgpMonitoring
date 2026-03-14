@@ -10,7 +10,15 @@ export interface BgpPeerState {
     bgpState: string; // "Established", "Connect", "Idle", "Active", "Down"
     acceptedPrefixes: number;
     advertisedPrefixes: number;
-    uptime?: number; // In seconds, optional
+    uptime?: number;        // In seconds, optional
+    description?: string;   // Peer name/description configured on router
+}
+
+export interface BgpEventLog {
+    timestamp: string;      // ISO string or router-formatted
+    peerIp: string;
+    eventType: 'UP' | 'DOWN' | 'INFO';
+    message: string;
 }
 
 export abstract class BasePoller {
@@ -21,4 +29,12 @@ export abstract class BasePoller {
      * an array of normalized BGP peer states.
      */
     abstract poll(): Promise<BgpPeerState[]>;
+
+    /**
+     * Fetch recent BGP state change logs from the device via SSH.
+     * Optional — base implementation returns empty array (graceful fallback).
+     */
+    async fetchBgpLog(): Promise<BgpEventLog[]> {
+        return [];
+    }
 }

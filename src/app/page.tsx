@@ -4,7 +4,7 @@ import { redis } from '@/lib/redis';
 import Link from 'next/link';
 import DashboardFilters from '@/app/components/DashboardFilters';
 import SortableHeader from '@/app/components/SortableHeader';
-import { fetchLibreNmsBgpEvents } from '@/app/actions/librenms-events';
+import LiveEventsPanel from '@/app/components/LiveEventsPanel';
 
 export default async function Home({ searchParams }: { searchParams: Promise<{ device?: string; sort?: string; status?: string; search?: string }> }) {
   const { device, sort, status, search } = await searchParams;
@@ -28,12 +28,12 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
   const upSessions = filteredSessionsByDevice.filter(s => s.bgpState === 'Established').length;
   const downSessions = totalSessions - upSessions;
 
-  // Latest BGP events from LibreNMS API (live)
-  // Support searching & scoping to the selected device
-  const fetchOptions: any = { limit: 5 };
-  if (device && device !== 'all') fetchOptions.search = device; // Assuming deviceName helps filter logs loosely
-  if (search) fetchOptions.search = search; // General query overrides
-  const latestAlerts = await fetchLibreNmsBgpEvents(fetchOptions);
+  // Latest BGP events — from device-events API (via LiveEventsPanel client component)
+  // Also keep DB events as fallback for state-change history
+  const configuredDevices = await prisma.routerDevice.findMany({
+    select: { id: true, hostname: true, ipAddress: true, vendor: true },
+    orderBy: { hostname: 'asc' }
+  });
 
   // Where clause (in-memory filtering)
   let allSessions = [...filteredSessionsByDevice];
@@ -223,42 +223,24 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
           </div>
         </div>
 
-        {/* Charts & Alerts */}
-        <div className="grid grid-cols-1 gap-4">
-          <div className="card p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-bold text-white">
-                Latest BGP Events {device && device !== 'all' && <span className="text-[#13a4ec] text-sm ml-2">- {device}</span>}
-              </h3>
-              <Link href="/reports" className="text-xs font-bold hover:underline" style={{ color: '#13a4ec' }}>View All →</Link>
+        {/* Latest BGP Events — Live from Device SSH Logs */}
+        <div className="card overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
+            <div>
+              <h3 className="font-bold text-white">Latest BGP Events</h3>
+              <p className="text-xs mt-0.5" style={{ color: '#64748b' }}>Live log from device SSH — click Refresh to fetch latest</p>
             </div>
-            <div className="space-y-2">
-              {latestAlerts.length === 0 ? (
-                <div className="text-center py-6">
-                  <span className="material-symbols-outlined text-3xl block mb-2" style={{ color: '#475569' }}>check_circle</span>
-                  <p className="text-sm" style={{ color: '#475569' }}>No BGP events or API not configured</p>
-                </div>
-              ) : latestAlerts.map((ev, i) => {
-                const isDown = /down|notestabl|idle|active/i.test(ev.message) || /down/i.test(ev.type);
-                const isUp = /up|established/i.test(ev.message);
-                const color = isDown ? '#f43f5e' : isUp ? '#10b981' : '#f59e0b';
-                const icon = isDown ? 'arrow_downward' : isUp ? 'arrow_upward' : 'info';
-                return (
-                  <div key={i} className="flex gap-2.5 p-2.5 rounded-lg"
-                    style={{ backgroundColor: `${color}08`, borderLeft: `3px solid ${color}` }}>
-                    <span className="material-symbols-outlined text-base flex-shrink-0 mt-0.5" style={{ color }}>{icon}</span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-semibold text-white truncate">{ev.hostname}</p>
-                      <p className="text-[11px] leading-tight" style={{ color: '#94a3b8' }}>{ev.message}</p>
-                      <p className="text-[10px] mt-0.5 font-medium uppercase" style={{ color }}>
-                        {fmtTime(new Date(ev.datetime))}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+            <Link href="/reports" className="text-xs font-bold hover:underline" style={{ color: '#13a4ec' }}>History →</Link>
           </div>
+          {configuredDevices.length === 0 ? (
+            <div className="p-8 text-center">
+              <span className="material-symbols-outlined text-3xl block mb-2" style={{ color: '#334155' }}>router</span>
+              <p className="text-sm text-white mb-1">No devices configured</p>
+              <p className="text-xs" style={{ color: '#475569' }}>Add a router in <Link href="/settings" className="text-[#13a4ec] hover:underline">Settings</Link> to see BGP events.</p>
+            </div>
+          ) : (
+            <LiveEventsPanel devices={configuredDevices} />
+          )}
         </div>
 
         {/* BGP Peer Status Table */}
@@ -299,12 +281,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
                       <td>
                         <Link href={`/peers/${encodeURIComponent(s.peerIp)}`} className="flex flex-col hover:opacity-75 transition-opacity group">
                           <span className="font-bold text-white text-sm group-hover:text-[#13a4ec] transition-colors">{s.peerIp}</span>
-                          <span className="text-xs font-medium" style={{ color: '#94a3b8' }}>{s.deviceName}</span>
-                          {s.deviceDescription && (
-                            <span className="text-[10px] truncate max-w-[200px]" style={{ color: '#475569' }} title={s.deviceDescription}>
-                              {s.deviceDescription}
-                            </span>
+                          {s.peerDescription && (
+                            <span className="text-xs font-semibold" style={{ color: '#e2e8f0' }}>{s.peerDescription}</span>
                           )}
+                          <span className="text-xs" style={{ color: '#94a3b8' }}>{s.deviceName}</span>
                         </Link>
                       </td>
                       <td>
