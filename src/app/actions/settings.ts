@@ -1,6 +1,7 @@
 'use server';
 
 import { prisma } from '@/lib/prisma';
+import { redis } from '@/lib/redis';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
@@ -85,11 +86,15 @@ export async function updateLibrenmsServer(formData: FormData) {
 
         if (existingServer.name !== name) {
             // If the name changed, we need to cascade the name update to the state tables
+            
+            // 1. Clear old Redis keys (the worker will recreate them with the new name on next sync)
+            const oldKeys = await redis.keys(`BgpSession:${existingServer.name}:*`);
+            if (oldKeys.length > 0) {
+                await redis.del(...oldKeys);
+            }
+
+            // 2. Cascade historical events and update the server name in SQLite
             await prisma.$transaction([
-                prisma.bgpCurrentState.updateMany({
-                    where: { serverName: existingServer.name },
-                    data: { serverName: name }
-                }),
                 prisma.historicalEvent.updateMany({
                     where: { serverName: existingServer.name },
                     data: { serverName: name }
@@ -124,11 +129,14 @@ export async function deleteLibrenmsServer(id: number) {
         });
 
         if (existingServer) {
-            // Cascade delete the associated data since it's mapped by serverName string
+            // 1. Clear associated BGP sessions from Redis cache
+            const serverKeys = await redis.keys(`BgpSession:${existingServer.name}:*`);
+            if (serverKeys.length > 0) {
+                await redis.del(...serverKeys);
+            }
+
+            // 2. Cascade delete the associated historical data and server config from SQLite
             await prisma.$transaction([
-                prisma.bgpCurrentState.deleteMany({
-                    where: { serverName: existingServer.name }
-                }),
                 prisma.historicalEvent.deleteMany({
                     where: { serverName: existingServer.name }
                 }),
