@@ -37,7 +37,11 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 
     const editUserId = editUser ? parseInt(editUser) : null;
     const users = await (prisma as any).appUser.findMany({
-        where: { tenantId: session.tenantId },
+        where: {
+            tenantId: session.tenantId,
+            // Superadmin tidak tampil di list tenant users
+            ...(session.role !== 'superadmin' ? { role: { not: 'superadmin' } } : {})
+        },
         orderBy: { createdAt: 'desc' }
     });
     const editUserObj = editUserId ? users.find((u: any) => u.id === editUserId) : null;
