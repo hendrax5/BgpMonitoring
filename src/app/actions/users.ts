@@ -1,19 +1,22 @@
 'use server';
 
+import { requireSession } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 import { revalidatePath } from 'next/cache';
 
 export async function addUser(formData: FormData) {
+    const session = await requireSession();
     const username = formData.get('username') as string;
     const password = formData.get('password') as string;
+    const role = (formData.get('role') as string) || 'viewer';
 
     if (!username || !password) return { error: 'Username and password required' };
 
     try {
         const hashedPassword = await bcrypt.hash(password, 10);
-        await prisma.appUser.create({
-            data: { username, password: hashedPassword }
+        await (prisma as any).appUser.create({
+            data: { username, password: hashedPassword, role, tenantId: session.tenantId }
         });
         revalidatePath('/settings');
         return { success: true };
@@ -24,20 +27,20 @@ export async function addUser(formData: FormData) {
 }
 
 export async function updateUser(formData: FormData) {
+    const session = await requireSession();
     const id = parseInt(formData.get('id') as string);
     const username = formData.get('username') as string;
     const password = formData.get('password') as string;
-    
+
     if (!id || !username) return { error: 'Invalid data' };
 
     try {
         const data: any = { username };
-        if (password) {
-            data.password = await bcrypt.hash(password, 10);
-        }
+        if (password) data.password = await bcrypt.hash(password, 10);
 
-        await prisma.appUser.update({
-            where: { id },
+        // Ensure update is scoped to this tenant
+        await (prisma as any).appUser.updateMany({
+            where: { id, tenantId: session.tenantId },
             data
         });
         revalidatePath('/settings');
@@ -49,12 +52,12 @@ export async function updateUser(formData: FormData) {
 }
 
 export async function deleteUser(id: number) {
+    const session = await requireSession();
     try {
-        const adminCount = await prisma.appUser.count();
-        if (adminCount <= 1) {
-            return { error: 'Cannot delete the last remaining user' };
-        }
-        await prisma.appUser.delete({ where: { id } });
+        const count = await (prisma as any).appUser.count({ where: { tenantId: session.tenantId } });
+        if (count <= 1) return { error: 'Cannot delete the last remaining user' };
+
+        await (prisma as any).appUser.deleteMany({ where: { id, tenantId: session.tenantId } });
         revalidatePath('/settings');
         return { success: true };
     } catch {
