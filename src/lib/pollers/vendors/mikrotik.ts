@@ -29,6 +29,11 @@ export class MikrotikPoller extends BasePoller {
             }
         }
 
+        // DEBUG: print raw output to see actual RouterOS format
+        console.log(`[MikroTik DEBUG] ${this.device.hostname} isV7=${isV7} outputLen=${output.length}`);
+        if (output.length > 0) console.log(`[MikroTik DEBUG] First 800 chars:\n${output.substring(0, 800)}`);
+        else console.log('[MikroTik DEBUG] Empty output — SSH connect may have failed or no BGP peers');
+
         return isV7 ? this.parseV7(output) : this.parseV6(output);
     }
 
