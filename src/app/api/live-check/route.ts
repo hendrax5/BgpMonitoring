@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'deviceIp and peerIp are required' }, { status: 400 });
     }
 
-    const router = await prisma.routerDevice.findUnique({
+    const router = await (prisma as any).routerDevice.findFirst({
         where: { ipAddress: deviceIp },
         include: { sshCredential: true }
     });
