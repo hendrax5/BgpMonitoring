@@ -52,8 +52,10 @@ export default async function DeviceCredentialsPage() {
             results?.forEach(([err, res]) => {
                 if (res) {
                     const s = JSON.parse(res as string);
-                    if (s.deviceIp && s.deviceName) {
-                        knownDevicesMap.set(s.deviceIp, { deviceIp: s.deviceIp, deviceName: s.deviceName });
+                    // Use deviceIp if available, fallback to deviceName (LibreNMS sometimes uses hostname=IP)
+                    const ip = s.deviceIp || s.deviceName;
+                    if (ip && s.deviceName) {
+                        knownDevicesMap.set(ip, { deviceIp: ip, deviceName: s.deviceName });
                     }
                 }
             });

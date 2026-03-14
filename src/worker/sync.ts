@@ -96,9 +96,9 @@ export async function fetchLibreNmsData(apiUrl: string, apiToken: string, server
         const devicesList = await fetchLibreNmsDevices(apiUrl, apiToken);
         const deviceMap = new Map();
         for (const d of devicesList) {
-            deviceMap.set(d.device_id.toString(), {
+        deviceMap.set(d.device_id.toString(), {
                 name: d.hostname,
-                ip: d.ip,
+                ip: d.ip || d.hostname,  // fallback: LibreNMS sometimes returns empty ip field
                 description: d.sysDescr || d.hardware || d.purpose || null
             });
         }
