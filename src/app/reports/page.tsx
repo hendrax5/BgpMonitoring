@@ -2,7 +2,6 @@ import { getHistoricalEvents, getTopFlappingPeers } from '@/app/actions/reports'
 import { prisma } from '@/lib/prisma';
 import { redis } from '@/lib/redis';
 import Link from 'next/link';
-import LiveEventsPanel from '@/app/components/LiveEventsPanel';
 
 export default async function ReportsPage(props: { searchParams: Promise<{ [key: string]: string | undefined }> }) {
     const searchParams = await props.searchParams;
@@ -18,10 +17,6 @@ export default async function ReportsPage(props: { searchParams: Promise<{ [key:
     const events = await getHistoricalEvents({ startDate, endDate, asn: effectiveAsn, search });
     const topFlap = await getTopFlappingPeers(startDate, endDate);
     const allAsns = await prisma.asnDictionary.findMany({ orderBy: { organizationName: 'asc' } });
-    const configuredDevices = await prisma.routerDevice.findMany({
-        select: { id: true, hostname: true, ipAddress: true, vendor: true },
-        orderBy: { hostname: 'asc' }
-    });
 
     // Summary counts
     const last24h = new Date(Date.now() - 86400000);
@@ -126,26 +121,6 @@ export default async function ReportsPage(props: { searchParams: Promise<{ [key:
                         </div>
                         {topFlap[0] && <p className="mt-1 text-[10px]" style={{ color: '#64748b' }}>{topFlap[0]._count.eventId}x drops</p>}
                     </div>
-                </div>
-
-                {/* SSH Live Log — per device */}
-                <div className="card overflow-hidden">
-                    <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
-                        <div className="flex items-center gap-2">
-                            <span className="material-symbols-outlined text-lg" style={{ color: '#13a4ec' }}>terminal</span>
-                            <h3 className="font-bold text-white">Device SSH Logs</h3>
-                        </div>
-                        <span className="text-xs" style={{ color: '#475569' }}>Real-time BGP log from device SSH</span>
-                    </div>
-                    {configuredDevices.length === 0 ? (
-                        <div className="p-8 text-center">
-                            <span className="material-symbols-outlined text-3xl block mb-2" style={{ color: '#334155' }}>router</span>
-                            <p className="text-sm text-white mb-1">No devices configured</p>
-                            <p className="text-xs" style={{ color: '#475569' }}>Add a router in <Link href="/settings" className="text-[#13a4ec] hover:underline">Settings</Link> to see SSH logs.</p>
-                        </div>
-                    ) : (
-                        <LiveEventsPanel devices={configuredDevices} />
-                    )}
                 </div>
 
                 {/* Filter Bar */}
