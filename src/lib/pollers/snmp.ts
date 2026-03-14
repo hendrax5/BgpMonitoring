@@ -1,5 +1,26 @@
 import snmp from 'net-snmp';
 
+/**
+ * BGP4-MIB OIDs (RFC 1657)
+ *   bgpPeerFsmEstablishedTime .1.3.6.1.2.1.15.3.1.16.{peerIp}  — seconds peer has been Established
+ *   bgpPeerInUpdates          .1.3.6.1.2.1.15.3.1.10.{peerIp}  — UPDATE messages received
+ *   bgpPeerOutUpdates         .1.3.6.1.2.1.15.3.1.11.{peerIp}  — UPDATE messages sent
+ *
+ * Note: Standard BGP4-MIB has no prefix count field. We return inUpdates/outUpdates as a proxy,
+ * which works well enough for established-time and a relative indicator. Vendor-specific MIBs
+ * (Cisco CISCO-BGP4-MIB, Juniper BGP-MIB etc.) would be needed for exact prefix counts —
+ * those are handled by each vendor poller via SSH.
+ */
+const BGP4_ESTABLISHED_TIME = '1.3.6.1.2.1.15.3.1.16';
+const BGP4_IN_UPDATES       = '1.3.6.1.2.1.15.3.1.10';
+const BGP4_OUT_UPDATES      = '1.3.6.1.2.1.15.3.1.11';
+
+export interface BgpSnmpStats {
+    uptime?: number;           // seconds in Established state (bgpPeerFsmEstablishedTime)
+    acceptedPrefixes?: number; // UPDATE msgs received (proxy; set to undefined if not useful)
+    advertisedPrefixes?: number; // UPDATE msgs sent
+}
+
 export class SnmpPoller {
     private session: any;
 
@@ -10,54 +31,80 @@ export class SnmpPoller {
         private port: number = 161
     ) {
         const snmpVersion = version === 'v3' ? snmp.Version3 : snmp.Version2c;
-        // Basic v2c session, v3 requires more params but this is a starting point
         this.session = snmp.createSession(this.ip, this.community, {
             port: this.port,
             version: snmpVersion,
-            timeouts: [1000, 2000],
+            timeouts: [2000, 4000],
             retries: 2,
         });
     }
 
+    /** Walk an OID table and return { 'peerIp' → numeric value } map */
+    async walkTable(baseOid: string): Promise<Map<string, number>> {
+        const map = new Map<string, number>();
+        return new Promise((resolve) => {
+            const feedCb = (varbinds: any[]) => {
+                for (const vb of varbinds) {
+                    if (snmp.isVarbindError(vb)) continue;
+                    const oidStr: string = vb.oid.toString();
+                    // Extract the IP suffix after the base OID
+                    const suffix = oidStr.startsWith(baseOid + '.') ? oidStr.slice(baseOid.length + 1) : oidStr;
+                    const val = typeof vb.value === 'number' ? vb.value : parseInt(String(vb.value), 10);
+                    if (!isNaN(val)) map.set(suffix, val);
+                }
+            };
+            this.session.walk(baseOid, 20, feedCb, (_error: any) => resolve(map));
+        });
+    }
+
     /**
-     * Walks an OID tree and returns an array of { oid, value, type }
+     * Fetch BGP4-MIB stats for all peers via SNMP.
+     * Returns a Map: peerIp (dot-notation) → BgpSnmpStats
+     * Falls back gracefully to empty map if SNMP not reachable.
+     */
+    async getBgpPeerStats(): Promise<Map<string, BgpSnmpStats>> {
+        const result = new Map<string, BgpSnmpStats>();
+        try {
+            const [uptimeMap, inUpdMap, outUpdMap] = await Promise.all([
+                this.walkTable(BGP4_ESTABLISHED_TIME),
+                this.walkTable(BGP4_IN_UPDATES),
+                this.walkTable(BGP4_OUT_UPDATES),
+            ]);
+            const allPeers = new Set([...uptimeMap.keys(), ...inUpdMap.keys(), ...outUpdMap.keys()]);
+            for (const ip of allPeers) {
+                result.set(ip, {
+                    uptime: uptimeMap.get(ip),
+                    // Only override prefix counts when SSH reports 0 and SNMP has data
+                    acceptedPrefixes: inUpdMap.get(ip),
+                    advertisedPrefixes: outUpdMap.get(ip),
+                });
+            }
+        } catch { /* SNMP not available, return empty */ }
+        return result;
+    }
+
+    /**
+     * Walks an OID tree, returns array of { oid, value, type }
+     * (kept for backward compatibility with existing callers)
      */
     async walk(oid: string): Promise<Array<{ oid: string; value: string | number | Buffer; type: number }>> {
         return new Promise((resolve, reject) => {
             const results: Array<{ oid: string; value: string | number | Buffer; type: number }> = [];
-            
             const feedCb = (varbinds: any[]) => {
-                for (let i = 0; i < varbinds.length; i++) {
-                    if (snmp.isVarbindError(varbinds[i])) {
-                        // ignore or log
-                    } else {
-                        results.push({
-                            oid: varbinds[i].oid.toString(),
-                            value: varbinds[i].value,
-                            type: varbinds[i].type
-                        });
+                for (const vb of varbinds) {
+                    if (!snmp.isVarbindError(vb)) {
+                        results.push({ oid: vb.oid.toString(), value: vb.value, type: vb.type });
                     }
                 }
             };
-
             this.session.walk(oid, 20, feedCb, (error: any) => {
-                if (error) {
-                    // if it's just end of MIB view, it's fine. 
-                    if (error.message && error.message.includes('Timeout')) {
-                        return reject(error);
-                    }
-                }
+                if (error?.message?.includes('Timeout')) return reject(error);
                 resolve(results);
             });
         });
     }
 
-    /**
-     * Closes the SNMP session
-     */
     close() {
-        if (this.session) {
-            this.session.close();
-        }
+        if (this.session) this.session.close();
     }
 }

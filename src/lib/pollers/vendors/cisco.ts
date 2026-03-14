@@ -41,7 +41,7 @@ export class CiscoPoller extends BasePoller {
                 });
             }
         }
-        return peers;
+        return this.enrichWithSnmp(peers);
     }
 
 

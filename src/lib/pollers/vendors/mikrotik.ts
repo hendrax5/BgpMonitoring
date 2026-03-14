@@ -29,7 +29,8 @@ export class MikrotikPoller extends BasePoller {
             }
         }
 
-        return isV7 ? this.parseV7(output) : this.parseV6(output);
+        const peers = isV7 ? this.parseV7(output) : this.parseV6(output);
+        return this.enrichWithSnmp(peers);
     }
 
     /**
