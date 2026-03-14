@@ -41,20 +41,33 @@ export default async function DeviceCredentialsPage() {
     const creds = await prisma.deviceCredential.findMany({ orderBy: { deviceIp: 'asc' } });
 
     // Get all known device IPs from current BGP state for autocomplete suggestions
-    const allKeys = await redis.keys('BgpSession:*');
-    const knownDevicesMap = new Map();
-    if (allKeys.length > 0) {
-        const pipeline = redis.pipeline();
-        allKeys.forEach(k => pipeline.hget(k, 'data'));
-        const results = await pipeline.exec();
-        results?.forEach(([err, res]) => {
-            if (res) {
-                const s = JSON.parse(res as string);
-                if (s.deviceIp && s.deviceName) knownDevicesMap.set(s.deviceIp, { deviceIp: s.deviceIp, deviceName: s.deviceName });
-            }
-        });
+    let knownDevices: { deviceIp: string; deviceName: string }[] = [];
+    try {
+        // Ensure the Redis connection is established (required with lazyConnect)
+        if (redis.status === 'wait' || redis.status === 'close') {
+            await redis.connect();
+        }
+
+        const allKeys = await redis.keys('BgpSession:*');
+        const knownDevicesMap = new Map();
+        if (allKeys.length > 0) {
+            const pipeline = redis.pipeline();
+            allKeys.forEach(k => pipeline.hget(k, 'data'));
+            const results = await pipeline.exec();
+            results?.forEach(([err, res]) => {
+                if (res) {
+                    const s = JSON.parse(res as string);
+                    if (s.deviceIp && s.deviceName) {
+                        knownDevicesMap.set(s.deviceIp, { deviceIp: s.deviceIp, deviceName: s.deviceName });
+                    }
+                }
+            });
+        }
+        knownDevices = Array.from(knownDevicesMap.values()).sort((a, b) => a.deviceName.localeCompare(b.deviceName));
+    } catch (err) {
+        console.error('[DevicesPage] Failed to fetch device list from Redis:', err);
+        // Remains empty [] — page still renders, just no autocomplete
     }
-    const knownDevices = Array.from(knownDevicesMap.values()).sort((a,b) => a.deviceName.localeCompare(b.deviceName));
 
     return (
         <div className="min-h-screen">
