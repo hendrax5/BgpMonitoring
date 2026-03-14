@@ -1,6 +1,6 @@
 # Stage 1: Dependencies
 FROM node:20-alpine AS deps
-RUN apk add --no-cache libc6-compat openssl
+RUN apk add --no-cache libc6-compat openssl python3 make g++
 WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm install
@@ -47,7 +47,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 RUN npm install -g tsx prisma@6
 
 # Install production dependencies for the worker securely in a separate directory so it doesn't destruct Next.js node_modules
-RUN mkdir -p /app/worker_deps && cd /app/worker_deps && npm init -y && npm install node-cron ssh2 @prisma/client net-snmp ssh2-promise socksv5 cpu-features
+RUN mkdir -p /app/worker_deps && cd /app/worker_deps && npm init -y && npm install node-cron ssh2 @prisma/client net-snmp ssh2-promise socksv5
 
 EXPOSE 3000
 
