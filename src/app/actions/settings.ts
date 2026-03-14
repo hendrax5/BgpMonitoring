@@ -13,35 +13,37 @@ export async function addRouterDevice(formData: FormData) {
     const snmpVersion = formData.get('snmpVersion') as string;
     const snmpCommunity = formData.get('snmpCommunity') as string;
     const snmpPort = parseInt(formData.get('snmpPort') as string || '161', 10);
-    
-    let sshCredentialId: number | null = null;
-    const sshCredStr = formData.get('sshCredentialId') as string;
-    if (sshCredStr && sshCredStr !== '') {
-        sshCredentialId = parseInt(sshCredStr, 10);
-    }
+
+    // SSH credentials — inline in the form now
+    const sshUser = (formData.get('sshUser') as string || '').trim();
+    const sshPass = (formData.get('sshPass') as string || '').trim();
+    const sshPort = parseInt(formData.get('sshPort') as string || '22', 10);
 
     if (!hostname || !ipAddress || !vendor || !pollMethod) {
         redirect(`/settings?error=${encodeURIComponent('Hostname, IP Address, Vendor, and Polling Method are required.')}`);
     }
 
     try {
+        // If SSH credentials provided, create/update DeviceCredential first
+        let sshCredentialId: number | null = null;
+        if (sshUser && sshPass) {
+            const cred = await prisma.deviceCredential.upsert({
+                where: { deviceIp: ipAddress },
+                create: { deviceIp: ipAddress, sshUser, sshPass, sshPort, vendor },
+                update: { sshUser, sshPass, sshPort, vendor },
+            });
+            sshCredentialId = cred.id;
+        }
+
         await prisma.routerDevice.create({
             data: {
-                hostname,
-                ipAddress,
-                vendor,
-                pollMethod,
-                snmpVersion,
-                snmpCommunity,
-                snmpPort,
+                hostname, ipAddress, vendor, pollMethod,
+                snmpVersion, snmpCommunity, snmpPort,
                 sshCredentialId
             }
         });
     } catch (error: any) {
-        // Only redirect if the error is not literally a navigation redirect error from Next.js!
-        if (error.message && error.message.includes('NEXT_REDIRECT')) {
-            throw error;
-        }
+        if (error.message?.includes('NEXT_REDIRECT')) throw error;
         if (error.code === 'P2002') {
             redirect(`/settings?error=${encodeURIComponent('A router with this hostname or IP already exists.')}`);
         }
@@ -61,66 +63,54 @@ export async function updateRouterDevice(formData: FormData) {
     const snmpCommunity = formData.get('snmpCommunity') as string;
     const snmpPort = parseInt(formData.get('snmpPort') as string || '161', 10);
 
-    let sshCredentialId: number | null = null;
-    const sshCredStr = formData.get('sshCredentialId') as string;
-    if (sshCredStr && sshCredStr !== '') {
-        sshCredentialId = parseInt(sshCredStr, 10);
-    }
+    const sshUser = (formData.get('sshUser') as string || '').trim();
+    const sshPass = (formData.get('sshPass') as string || '').trim();
+    const sshPort = parseInt(formData.get('sshPort') as string || '22', 10);
 
     if (!id || !hostname || !ipAddress) {
         redirect(`/settings?error=${encodeURIComponent('Hostname and IP Address are required.')}`);
     }
 
     try {
-        const existingRouter = await prisma.routerDevice.findUnique({
-            where: { id }
-        });
+        const existingRouter = await prisma.routerDevice.findUnique({ where: { id } });
+        if (!existingRouter) redirect(`/settings?error=${encodeURIComponent('Router not found.')}`);
 
-        if (!existingRouter) {
-            redirect(`/settings?error=${encodeURIComponent('Router not found.')}`);
+        // Upsert SSH credential if provided
+        let sshCredentialId: number | null = existingRouter!.sshCredentialId;
+        if (sshUser && sshPass) {
+            const cred = await prisma.deviceCredential.upsert({
+                where: { deviceIp: ipAddress },
+                create: { deviceIp: ipAddress, sshUser, sshPass, sshPort, vendor },
+                update: { sshUser, sshPass, sshPort, vendor },
+            });
+            sshCredentialId = cred.id;
         }
 
-        const updateData = { 
-            hostname, ipAddress, vendor, pollMethod, 
-            snmpVersion, snmpCommunity, snmpPort, sshCredentialId 
-        };
+        const updateData = { hostname, ipAddress, vendor, pollMethod, snmpVersion, snmpCommunity, snmpPort, sshCredentialId };
 
-        if (existingRouter.hostname !== hostname) {
-            // If the name changed, we need to cascade the name update to the state tables
-            
-            // 1. Clear old Redis keys (the worker will recreate them with the new name on next sync)
-            const oldKeys = await redis.keys(`BgpSession:${existingRouter.hostname}:*`);
-            if (oldKeys.length > 0) {
-                await redis.del(...oldKeys);
-            }
+        if (existingRouter!.hostname !== hostname) {
+            // Cascade hostname rename to Redis and historical events
+            const oldKeys = await redis.keys(`BgpSession:${existingRouter!.hostname}:*`);
+            if (oldKeys.length > 0) await redis.del(...oldKeys);
 
-            // 2. Cascade historical events and update the server name in SQLite
             await prisma.$transaction([
                 prisma.historicalEvent.updateMany({
-                    where: { serverName: existingRouter.hostname },
+                    where: { serverName: existingRouter!.hostname },
                     data: { serverName: hostname }
                 }),
-                prisma.routerDevice.update({
-                    where: { id },
-                    data: updateData,
-                })
+                prisma.routerDevice.update({ where: { id }, data: updateData })
             ]);
         } else {
-            // No name change, simple update
-            await prisma.routerDevice.update({
-                where: { id },
-                data: updateData,
-            });
+            await prisma.routerDevice.update({ where: { id }, data: updateData });
         }
     } catch (error: any) {
-        if (error.message && error.message.includes('NEXT_REDIRECT')) {
-            throw error;
-        }
+        if (error.message?.includes('NEXT_REDIRECT')) throw error;
         redirect(`/settings?error=${encodeURIComponent(error.message || 'Failed to update router.')}`);
     }
 
     redirect('/settings');
 }
+
 
 export async function deleteRouterDevice(id: number) {
     try {

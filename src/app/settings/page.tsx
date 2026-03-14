@@ -2,17 +2,16 @@ import { prisma } from '@/lib/prisma';
 import { addRouterDevice, updateRouterDevice, deleteRouterDevice, getTelegramSettings, saveTelegramSettings } from '@/app/actions/settings';
 import { addUser, updateUser, deleteUser } from '@/app/actions/users';
 import SyncButton from '@/app/settings/components/SyncButton';
+import RouterTestButton from '@/app/settings/components/RouterTestButton';
 
 export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ error?: string; edit?: string; editUser?: string }> }) {
     const { error, edit, editUser } = await searchParams;
     const editId = edit ? parseInt(edit) : null;
     const devices = await prisma.routerDevice.findMany({ 
         orderBy: { createdAt: 'desc' },
-        include: { sshCredential: true } // Include to show linked credentials
+        include: { sshCredential: true }
     });
     const editDevice = editId ? devices.find((d: any) => d.id === editId) : null;
-
-    const credentials = await prisma.deviceCredential.findMany({ orderBy: { deviceIp: 'asc' } });
 
     const editUserId = editUser ? parseInt(editUser) : null;
     const users = await prisma.appUser.findMany({ orderBy: { createdAt: 'desc' } });
@@ -128,19 +127,30 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 
                                 <hr style={{ borderColor: 'rgba(255,255,255,0.07)' }} className="my-2" />
 
+                                {/* SSH Credentials — inline */}
+                                <div className="space-y-1 mb-1">
+                                    <p className="text-xs font-semibold" style={{ color: '#13a4ec' }}>SSH Credentials</p>
+                                    <p className="text-[10px]" style={{ color: '#475569' }}>Kosongkan jika tidak pakai SSH</p>
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-xs font-medium mb-1" style={{ color: '#64748b' }}>SSH Username</label>
+                                        <input type="text" name="sshUser" placeholder="admin"
+                                            defaultValue={editDevice?.sshCredential?.sshUser || ''}
+                                            className="form-input" autoComplete="off" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium mb-1" style={{ color: '#64748b' }}>SSH Port</label>
+                                        <input type="number" name="sshPort" placeholder="22"
+                                            defaultValue={editDevice?.sshCredential?.sshPort || 22}
+                                            className="form-input" />
+                                    </div>
+                                </div>
                                 <div>
-                                    <label className="block text-xs font-medium mb-1 flex justify-between" style={{ color: '#64748b' }}>
-                                        <span>Link SSH Credential</span>
-                                        <a href="/settings/devices" className="text-[#13a4ec] hover:underline" target="_blank">Manage</a>
-                                    </label>
-                                    <select name="sshCredentialId" className="form-input" defaultValue={editDevice?.sshCredentialId?.toString() || ''}>
-                                        <option value="">— None (SNMP Only) —</option>
-                                        {credentials.map(c => (
-                                            <option key={c.id} value={c.id}>
-                                                {c.sshUser}@{c.deviceIp} ({c.vendor}) {c.notes ? `- ${c.notes}` : ''}
-                                            </option>
-                                        ))}
-                                    </select>
+                                    <label className="block text-xs font-medium mb-1" style={{ color: '#64748b' }}>SSH Password</label>
+                                    <input type="password" name="sshPass"
+                                        placeholder={editDevice?.sshCredential ? '•••••••• (tersimpan, kosongkan jika tidak diubah)' : '••••••••'}
+                                        className="form-input" autoComplete="new-password" />
                                 </div>
 
 
@@ -181,9 +191,10 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                                     <thead>
                                         <tr>
                                             <th>Hostname & IP</th>
-                                            <th>Method & Vendor</th>
-                                            <th>SNMP Cred</th>
-                                            <th>SSH Link</th>
+                                            <th>Vendor / Method</th>
+                                            <th>SNMP</th>
+                                            <th>SSH</th>
+                                            <th>Test</th>
                                             <th style={{ textAlign: 'right' }}>Actions</th>
                                         </tr>
                                     </thead>
@@ -196,23 +207,36 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                                                 </td>
                                                 <td>
                                                     <div className="text-sm text-white capitalize">{device.vendor}</div>
-                                                    <div className="text-xs" style={{ color: '#64748b' }}>{device.pollMethod.replace(/_/g, ' ')}</div>
+                                                    <div className="text-[10px] px-1.5 py-0.5 rounded mt-0.5 inline-block"
+                                                        style={{ backgroundColor: 'rgba(19,164,236,0.1)', color: '#13a4ec' }}>
+                                                        {device.pollMethod.replace(/_/g, ' ')}
+                                                    </div>
                                                 </td>
                                                 <td>
-                                                    <div className="flex items-center gap-1">
-                                                        <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ backgroundColor: device.snmpCommunity ? '#10b981' : '#475569' }}></span>
-                                                        <span className="text-[10px]" style={{ color: '#64748b' }}>{device.snmpVersion}</span>
-                                                    </div>
+                                                    {device.snmpCommunity ? (
+                                                        <div className="flex items-center gap-1.5">
+                                                            <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: '#10b981' }}></span>
+                                                            <span className="text-xs" style={{ color: '#94a3b8' }}>{device.snmpVersion} · port {device.snmpPort}</span>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex items-center gap-1.5">
+                                                            <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: '#475569' }}></span>
+                                                            <span className="text-xs" style={{ color: '#475569' }}>Not set</span>
+                                                        </div>
+                                                    )}
                                                 </td>
                                                 <td>
                                                     {device.sshCredential ? (
                                                         <div className="text-xs flex flex-col">
                                                             <span className="text-white">{device.sshCredential.sshUser}</span>
-                                                            <span style={{ color: '#64748b' }}>{device.sshCredential.deviceIp}</span>
+                                                            <span style={{ color: '#64748b' }}>port {device.sshCredential.sshPort}</span>
                                                         </div>
                                                     ) : (
-                                                        <span className="text-xs" style={{ color: '#475569' }}>None</span>
+                                                        <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(255,255,255,0.04)', color: '#475569' }}>No SSH</span>
                                                     )}
+                                                </td>
+                                                <td>
+                                                    <RouterTestButton routerId={device.id} />
                                                 </td>
                                                 <td style={{ textAlign: 'right' }}>
                                                     <div className="flex items-center justify-end gap-1">
