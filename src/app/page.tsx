@@ -1,4 +1,5 @@
 import { logout } from '@/app/actions/auth';
+import { requireSession } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { redis } from '@/lib/redis';
 import Link from 'next/link';
@@ -6,11 +7,11 @@ import DashboardFilters from '@/app/components/DashboardFilters';
 import SortableHeader from '@/app/components/SortableHeader';
 
 export default async function Home({ searchParams }: { searchParams: Promise<{ device?: string; sort?: string; status?: string; search?: string }> }) {
+  const session = await requireSession();
   const { device, sort, status, search } = await searchParams;
 
-  // Aggregate counts — scoped to selected device if filter is active
-  // Since we use Redis now, we first grab all sessions:
-  const allRedisKeys = await redis.keys('BgpSession:*');
+  // Scoped Redis keys for this tenant
+  const allRedisKeys = await redis.keys(`BgpSession:${session.tenantId}:*`);
   let allSessionsRaw: any[] = [];
   
   if (allRedisKeys.length > 0) {
@@ -27,14 +28,16 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
   const upSessions = filteredSessionsByDevice.filter(s => s.bgpState === 'Established').length;
   const downSessions = totalSessions - upSessions;
 
-  // Latest 5 BGP events from DB (state changes recorded by worker)
+  // Latest 5 BGP events from DB (state changes recorded by worker) — scoped to tenant
   const latestDbEvents = await (prisma as any).historicalEvent.findMany({
+    where: { tenantId: session.tenantId },
     orderBy: { eventTimestamp: 'desc' },
     take: 5
   });
 
-  // Configured devices for LiveEventsPanel (SSH log viewer)
-  const configuredDevices = await prisma.routerDevice.findMany({
+  // Configured devices — scoped to tenant
+  const configuredDevices = await (prisma as any).routerDevice.findMany({
+    where: { tenantId: session.tenantId },
     select: { id: true, hostname: true, ipAddress: true, vendor: true },
     orderBy: { hostname: 'asc' }
   });

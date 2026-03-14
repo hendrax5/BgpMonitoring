@@ -2,10 +2,19 @@
 
 import { prisma } from '@/lib/prisma';
 import { redis } from '@/lib/redis';
+import { requireSession } from '@/lib/auth';
+import { scopedDb } from '@/lib/scoped-db';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
 
 export async function addRouterDevice(formData: FormData) {
+    const session = await requireSession();
+    const db = scopedDb(session.tenantId);
+
     const hostname = formData.get('hostname') as string;
     const ipAddress = formData.get('ipAddress') as string;
     const vendor = formData.get('vendor') as string;
@@ -13,8 +22,6 @@ export async function addRouterDevice(formData: FormData) {
     const snmpVersion = formData.get('snmpVersion') as string;
     const snmpCommunity = formData.get('snmpCommunity') as string;
     const snmpPort = parseInt(formData.get('snmpPort') as string || '161', 10);
-
-    // SSH credentials — inline in the form now
     const sshUser = (formData.get('sshUser') as string || '').trim();
     const sshPass = (formData.get('sshPass') as string || '').trim();
     const sshPort = parseInt(formData.get('sshPort') as string || '22', 10);
@@ -24,36 +31,29 @@ export async function addRouterDevice(formData: FormData) {
     }
 
     try {
-        // If SSH credentials provided, create/update DeviceCredential first
         let sshCredentialId: number | null = null;
         if (sshUser && sshPass) {
-            const cred = await prisma.deviceCredential.upsert({
-                where: { deviceIp: ipAddress },
-                create: { deviceIp: ipAddress, sshUser, sshPass, sshPort, vendor },
+            const cred = await (prisma as any).deviceCredential.upsert({
+                where: { tenantId_deviceIp: { tenantId: session.tenantId, deviceIp: ipAddress } },
+                create: { tenantId: session.tenantId, deviceIp: ipAddress, sshUser, sshPass, sshPort, vendor },
                 update: { sshUser, sshPass, sshPort, vendor },
             });
             sshCredentialId = cred.id;
         }
 
-        await prisma.routerDevice.create({
-            data: {
-                hostname, ipAddress, vendor, pollMethod,
-                snmpVersion, snmpCommunity, snmpPort,
-                sshCredentialId
-            }
+        await db.routerDevice.create({
+            data: { hostname, ipAddress, vendor, pollMethod, snmpVersion, snmpCommunity, snmpPort, sshCredentialId }
         });
     } catch (error: any) {
         if (error.message?.includes('NEXT_REDIRECT')) throw error;
-        if (error.code === 'P2002') {
-            redirect(`/settings?error=${encodeURIComponent('A router with this hostname or IP already exists.')}`);
-        }
         redirect(`/settings?error=${encodeURIComponent(error.message || 'Failed to add router.')}`);
     }
-
     redirect('/settings');
 }
 
 export async function updateRouterDevice(formData: FormData) {
+    const session = await requireSession();
+
     const id = parseInt(formData.get('id') as string);
     const hostname = formData.get('hostname') as string;
     const ipAddress = formData.get('ipAddress') as string;
@@ -62,7 +62,6 @@ export async function updateRouterDevice(formData: FormData) {
     const snmpVersion = formData.get('snmpVersion') as string;
     const snmpCommunity = formData.get('snmpCommunity') as string;
     const snmpPort = parseInt(formData.get('snmpPort') as string || '161', 10);
-
     const sshUser = (formData.get('sshUser') as string || '').trim();
     const sshPass = (formData.get('sshPass') as string || '').trim();
     const sshPort = parseInt(formData.get('sshPort') as string || '22', 10);
@@ -72,15 +71,14 @@ export async function updateRouterDevice(formData: FormData) {
     }
 
     try {
-        const existingRouter = await prisma.routerDevice.findUnique({ where: { id } });
+        const existingRouter = await (prisma as any).routerDevice.findFirst({ where: { id, tenantId: session.tenantId } });
         if (!existingRouter) redirect(`/settings?error=${encodeURIComponent('Router not found.')}`);
 
-        // Upsert SSH credential if provided
-        let sshCredentialId: number | null = existingRouter!.sshCredentialId;
+        let sshCredentialId: number | null = existingRouter.sshCredentialId;
         if (sshUser && sshPass) {
-            const cred = await prisma.deviceCredential.upsert({
-                where: { deviceIp: ipAddress },
-                create: { deviceIp: ipAddress, sshUser, sshPass, sshPort, vendor },
+            const cred = await (prisma as any).deviceCredential.upsert({
+                where: { tenantId_deviceIp: { tenantId: session.tenantId, deviceIp: ipAddress } },
+                create: { tenantId: session.tenantId, deviceIp: ipAddress, sshUser, sshPass, sshPort, vendor },
                 update: { sshUser, sshPass, sshPort, vendor },
             });
             sshCredentialId = cred.id;
@@ -88,74 +86,38 @@ export async function updateRouterDevice(formData: FormData) {
 
         const updateData = { hostname, ipAddress, vendor, pollMethod, snmpVersion, snmpCommunity, snmpPort, sshCredentialId };
 
-        if (existingRouter!.hostname !== hostname) {
-            // Cascade hostname rename to Redis and historical events
-            const oldKeys = await redis.keys(`BgpSession:${existingRouter!.hostname}:*`);
+        if (existingRouter.hostname !== hostname) {
+            const oldKeys = await redis.keys(`BgpSession:${session.tenantId}:${existingRouter.hostname}:*`);
             if (oldKeys.length > 0) await redis.del(...oldKeys);
-
-            await prisma.$transaction([
-                prisma.historicalEvent.updateMany({
-                    where: { serverName: existingRouter!.hostname },
-                    data: { serverName: hostname }
-                }),
-                prisma.routerDevice.update({ where: { id }, data: updateData })
-            ]);
-        } else {
-            await prisma.routerDevice.update({ where: { id }, data: updateData });
         }
+
+        await (prisma as any).routerDevice.update({ where: { id }, data: updateData });
     } catch (error: any) {
         if (error.message?.includes('NEXT_REDIRECT')) throw error;
         redirect(`/settings?error=${encodeURIComponent(error.message || 'Failed to update router.')}`);
     }
-
     redirect('/settings');
 }
 
-
 export async function deleteRouterDevice(id: number) {
+    const session = await requireSession();
     try {
-        const existingRouter = await prisma.routerDevice.findUnique({
-            where: { id }
-        });
-
-        if (existingRouter) {
-            // 1. Clear associated BGP sessions from Redis cache
-            const serverKeys = await redis.keys(`BgpSession:${existingRouter.hostname}:*`);
-            if (serverKeys.length > 0) {
-                await redis.del(...serverKeys);
-            }
-
-            // 2. Cascade delete the associated historical data and router config from SQLite
-            await prisma.$transaction([
-                prisma.historicalEvent.deleteMany({
-                    where: { serverName: existingRouter.hostname }
-                }),
-                prisma.routerDevice.delete({
-                    where: { id }
-                })
-            ]);
+        const existing = await (prisma as any).routerDevice.findFirst({ where: { id, tenantId: session.tenantId } });
+        if (existing) {
+            const redisKeys = await redis.keys(`BgpSession:${session.tenantId}:${existing.hostname}:*`);
+            if (redisKeys.length > 0) await redis.del(...redisKeys);
+            await (prisma as any).routerDevice.delete({ where: { id } });
         }
-        
         revalidatePath('/settings');
     } catch (error: any) {
-        if (error.message && error.message.includes('NEXT_REDIRECT')) {
-            throw error;
-        }
+        if (error.message?.includes('NEXT_REDIRECT')) throw error;
         redirect(`/settings?error=${encodeURIComponent(error.message || 'Failed to delete router.')}`);
     }
 }
 
-import { exec } from 'child_process';
-import { promisify } from 'util';
-
-const execAsync = promisify(exec);
-
 export async function triggerManualSync() {
     try {
-        // Run the background worker script via shell instead of importing it
-        // This ensures Next.js webpack doesn't try to bundle native SNMP/SSH libraries
         await execAsync('npm run worker');
-        
         revalidatePath('/');
         revalidatePath('/settings');
         revalidatePath('/reports');
@@ -166,10 +128,10 @@ export async function triggerManualSync() {
 }
 
 export async function getTelegramSettings(): Promise<{ botToken: string; chatId: string }> {
-    const rows = await prisma.appSettings.findMany({
-        where: { key: { in: ['telegram_bot_token', 'telegram_chat_id'] } }
-    });
-    const map = Object.fromEntries(rows.map(r => [r.key, r.value]));
+    const session = await requireSession();
+    const db = scopedDb(session.tenantId);
+    const rows = await db.appSettings.findMany({ where: { key: { in: ['telegram_bot_token', 'telegram_chat_id'] } } } as any);
+    const map = Object.fromEntries((rows as any[]).map((r: any) => [r.key, r.value]));
     return {
         botToken: map['telegram_bot_token'] || '',
         chatId: map['telegram_chat_id'] || '',
@@ -177,21 +139,13 @@ export async function getTelegramSettings(): Promise<{ botToken: string; chatId:
 }
 
 export async function saveTelegramSettings(formData: FormData) {
+    const session = await requireSession();
+    const db = scopedDb(session.tenantId);
     const botToken = (formData.get('telegram_bot_token') as string || '').trim();
     const chatId = (formData.get('telegram_chat_id') as string || '').trim();
 
-    await prisma.$transaction([
-        prisma.appSettings.upsert({
-            where: { key: 'telegram_bot_token' },
-            create: { key: 'telegram_bot_token', value: botToken },
-            update: { value: botToken },
-        }),
-        prisma.appSettings.upsert({
-            where: { key: 'telegram_chat_id' },
-            create: { key: 'telegram_chat_id', value: chatId },
-            update: { value: chatId },
-        }),
-    ]);
+    await db.appSettings.upsert({ where: { key: 'telegram_bot_token' }, create: { key: 'telegram_bot_token', value: botToken }, update: { value: botToken } } as any);
+    await db.appSettings.upsert({ where: { key: 'telegram_chat_id' }, create: { key: 'telegram_chat_id', value: chatId }, update: { value: chatId } } as any);
 
     revalidatePath('/settings');
 }

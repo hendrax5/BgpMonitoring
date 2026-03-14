@@ -1,109 +1,151 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+// This is your Prisma schema file
+// v2.1.0 — Multi-tenancy + RBAC
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
+// ─── Tenant (Organisasi / Pelanggan) ──────────────────────────────────────────
+model Tenant {
+  id        String   @id @default(uuid())
+  name      String   @unique          // Nama organisasi
+  slug      String   @unique          // URL-friendly: "pt-mitra-net"
+  plan      String   @default("free") // free | pro | enterprise
+  createdAt DateTime @default(now())  @map("created_at")
+
+  users            AppUser[]
+  devices          RouterDevice[]
+  deviceCredentials DeviceCredential[]
+  historicalEvents HistoricalEvent[]
+  bgpLogs          BgpLog[]
+  settings         AppSettings[]
+
+  @@map("tenants")
+}
+
+// ─── User ─────────────────────────────────────────────────────────────────────
+model AppUser {
+  id        Int      @id @default(autoincrement())
+  tenantId  String   @map("tenant_id")
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  username  String
+  email     String?
+  password  String   // bcrypt hashed
+  role      String   @default("viewer") // superadmin | orgadmin | viewer
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([tenantId, username])
+  @@index([tenantId])
+  @@map("app_users")
+}
+
+// ─── ASN Dictionary (global, shared across tenants) ───────────────────────────
 model AsnDictionary {
   asn              BigInt   @id
   organizationName String   @map("organization_name")
   lastUpdatedAt    DateTime @updatedAt @map("last_updated_at")
   createdAt        DateTime @default(now()) @map("created_at")
+
+  @@map("asn_dictionary")
 }
 
-
+// ─── BGP State Change Events (per tenant) ─────────────────────────────────────
 model HistoricalEvent {
   eventId          Int      @id @default(autoincrement()) @map("event_id")
+  tenantId         String   @map("tenant_id")
+  tenant           Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   serverName       String   @default("default") @map("server_name")
   eventTimestamp   DateTime @map("event_timestamp")
   deviceName       String   @map("device_name")
   deviceIp         String   @map("device_ip")
   peerIp           String   @map("peer_ip")
-  peerDescription  String?  @map("peer_description") // Description/name from router config
+  peerDescription  String?  @map("peer_description")
   asn              BigInt
   organizationName String   @map("organization_name")
-  eventType        String   @map("event_type") // 'UP' or 'DOWN'
+  eventType        String   @map("event_type")    // 'UP' | 'DOWN'
   downEventId      BigInt?  @map("down_event_id")
   downtimeDuration Int?     @map("downtime_duration")
 
+  @@index([tenantId])
   @@index([peerIp])
   @@index([eventTimestamp])
   @@map("historical_event")
 }
 
-// BGP log entries fetched from device SSH — stored for history
+// ─── BGP SSH Logs (per tenant) ────────────────────────────────────────────────
 model BgpLog {
-  id          Int      @id @default(autoincrement())
-  deviceId    Int      @map("device_id")
-  deviceName  String   @map("device_name")
-  peerIp      String   @map("peer_ip")
-  eventType   String   @map("event_type") // 'UP' | 'DOWN' | 'INFO'
-  message     String
-  fetchedAt   DateTime @default(now()) @map("fetched_at")
+  id         Int      @id @default(autoincrement())
+  tenantId   String   @map("tenant_id")
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  deviceId   Int      @map("device_id")
+  deviceName String   @map("device_name")
+  peerIp     String   @map("peer_ip")
+  eventType  String   @map("event_type") // 'UP' | 'DOWN' | 'INFO'
+  message    String
+  fetchedAt  DateTime @default(now()) @map("fetched_at")
 
+  @@index([tenantId])
   @@index([deviceId])
   @@index([fetchedAt])
   @@map("bgp_log")
 }
 
+// ─── Router Devices (per tenant) ──────────────────────────────────────────────
 model RouterDevice {
   id              Int      @id @default(autoincrement())
-  hostname        String   @unique
-  ipAddress       String   @unique @map("ip_address")
-  vendor          String   @default("mikrotik") // mikrotik | cisco | juniper | huawei | danos | vyos
-  
-  pollMethod      String   @default("snmp_ssh_mix") @map("poll_method") // snmp_only | ssh_only | snmp_ssh_mix
-  
+  tenantId        String   @map("tenant_id")
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  hostname        String
+  ipAddress       String   @map("ip_address")
+  vendor          String   @default("mikrotik")
+  pollMethod      String   @default("snmp_ssh_mix") @map("poll_method")
   snmpVersion     String   @default("v2c") @map("snmp_version")
   snmpCommunity   String?  @map("snmp_community")
   snmpPort        Int      @default(161) @map("snmp_port")
-  
   sshCredentialId Int?     @map("ssh_credential_id")
   sshCredential   DeviceCredential? @relation(fields: [sshCredentialId], references: [id], onDelete: SetNull)
-
   createdAt       DateTime @default(now()) @map("created_at")
 
+  @@unique([tenantId, hostname])
+  @@unique([tenantId, ipAddress])
+  @@index([tenantId])
   @@map("router_device")
 }
 
+// ─── SSH Credentials (per tenant) ─────────────────────────────────────────────
 model DeviceCredential {
   id        Int      @id @default(autoincrement())
-  deviceIp  String   @unique @map("device_ip") // Exact IP or CIDR prefix like 10.1.1.
+  tenantId  String   @map("tenant_id")
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  deviceIp  String   @map("device_ip")
   sshPort   Int      @default(22) @map("ssh_port")
   sshUser   String   @map("ssh_user")
   sshPass   String   @map("ssh_pass")
-  vendor    String   @default("cisco") // cisco | juniper | huawei
-  notes     String? // Optional label e.g. "Core Routers"
+  vendor    String   @default("cisco")
+  notes     String?
   createdAt DateTime @default(now()) @map("created_at")
 
   routerDevices RouterDevice[]
 
+  @@unique([tenantId, deviceIp])
+  @@index([tenantId])
   @@map("device_credential")
 }
 
-model AppUser {
-  id        Int      @id @default(autoincrement())
-  username  String   @unique
-  password  String // hashed
-  createdAt DateTime @default(now()) @map("created_at")
-
-  @@map("app_users")
-}
-
-// Key-value store for app configuration (editable from UI)
+// ─── App Settings (per tenant) ────────────────────────────────────────────────
 model AppSettings {
-  key       String   @id
-  value     String
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id       Int    @id @default(autoincrement())
+  tenantId String @map("tenant_id")
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  key      String
+  value    String
 
+  @@unique([tenantId, key])
+  @@index([tenantId])
   @@map("app_settings")
 }

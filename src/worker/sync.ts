@@ -102,50 +102,67 @@ export async function sendTelegramAlert(type: 'DOWN' | 'UP', data: any, organiza
 export async function forceSyncLibreNMS(triggeredBy: string = 'Worker') {
     console.log(`[${new Date().toISOString()}] Starting Direct SNMP/SSH ${triggeredBy} Polling cycle...`);
 
-    // --- Load Telegram config from DB (set via Settings UI) ---
+    // --- Load all tenants ---
+    let tenants: any[] = [];
+    try {
+        tenants = await (prisma as any).tenant.findMany({ select: { id: true, slug: true } });
+    } catch (e) {
+        console.error('⚠️ Failed to load tenants.', e);
+        return;
+    }
+
+    if (tenants.length === 0) {
+        console.warn('⚠️ No tenants found. Register an organization first.');
+        return;
+    }
+
+    for (const tenant of tenants) {
+        await pollTenant(tenant.id, tenant.slug);
+    }
+}
+
+async function pollTenant(tenantId: string, tenantSlug: string) {
+    console.log(`\n[Tenant: ${tenantSlug}] Starting poll...`);
+
+    // --- Load Telegram config for this tenant ---
     let telegramBotToken = '';
     let telegramChatId = '';
     try {
         const tgSettings = await (prisma as any).appSettings.findMany({
-            where: { key: { in: ['telegram_bot_token', 'telegram_chat_id'] } }
+            where: { tenantId, key: { in: ['telegram_bot_token', 'telegram_chat_id'] } }
         });
         const tgMap = Object.fromEntries(tgSettings.map((r: any) => [r.key, r.value]));
         telegramBotToken = tgMap['telegram_bot_token'] || '';
         telegramChatId = tgMap['telegram_chat_id'] || '';
-    } catch {
-        // appSettings table might not exist yet on first run
-    }
+    } catch { /* appSettings might not exist yet */ }
 
     let devices: any[] = [];
     try {
-        devices = await prisma.routerDevice.findMany({
+        devices = await (prisma as any).routerDevice.findMany({
+            where: { tenantId },
             include: { sshCredential: true }
         });
     } catch (e) {
-        console.error("⚠️ Failed to load router devices from database.", e);
+        console.error(`⚠️ [${tenantSlug}] Failed to load devices.`, e);
         return;
     }
 
-    // --- Global Cleanup: Remove orphaned Redis sessions for deleted devices ---
+    // --- Cleanup orphaned Redis sessions for this tenant ---
     try {
-        const allKeys = await redis.keys('BgpSession:*');
-        const validDeviceNames = new Set(devices.map(d => d.hostname));
-        const orphanedKeys = allKeys.filter(k => {
-            // Key format: BgpSession:SERVER_NAME(hostname):DEVICE_ID:PEER_IP
+        const allKeys = await redis.keys(`BgpSession:${tenantId}:*`);
+        const validDeviceNames = new Set(devices.map((d: any) => d.hostname));
+        const orphanedKeys = allKeys.filter((k: string) => {
             const parts = k.split(':');
-            return parts.length >= 2 && !validDeviceNames.has(parts[1]);
+            return parts.length >= 3 && !validDeviceNames.has(parts[2]);
         });
-        
         if (orphanedKeys.length > 0) {
             await redis.del(...orphanedKeys);
-            console.log(`🗑️ Global Cleanup: Removed ${orphanedKeys.length} orphaned sessions from Redis for deleted routers.`);
+            console.log(`🗑️ [${tenantSlug}] Removed ${orphanedKeys.length} orphaned sessions from Redis.`);
         }
-    } catch (err) {
-        console.error("⚠️ Failed to clean up orphaned Redis keys", err);
-    }
+    } catch (err) { console.error(`⚠️ [${tenantSlug}] Failed to clean orphaned Redis keys`, err); }
 
     if (devices.length === 0) {
-        console.warn("⚠️ No Routers configured in the Database. Please add one via the Settings UI.");
+        console.warn(`⚠️ [${tenantSlug}] No routers configured.`);
         return;
     }
 
@@ -204,7 +221,7 @@ export async function forceSyncLibreNMS(triggeredBy: string = 'Worker') {
                 peerDescription: peer.description || '',  // ← from vendor poller
             };
 
-            const redisKey = `BgpSession:${session.serverName}:${session.deviceId}:${session.peerIp}`;
+            const redisKey = `BgpSession:${tenantId}:${session.serverName}:${session.deviceId}:${session.peerIp}`;
 
             try {
                 const existingStateStr = await redis.hget(redisKey, 'data');
@@ -227,6 +244,7 @@ export async function forceSyncLibreNMS(triggeredBy: string = 'Worker') {
                     // UP -> DOWN
                     await (prisma as any).historicalEvent.create({
                         data: {
+                            tenantId,
                             serverName: session.serverName,
                             eventTimestamp: new Date(),
                             deviceName: session.deviceName,
@@ -243,8 +261,9 @@ export async function forceSyncLibreNMS(triggeredBy: string = 'Worker') {
                 }
                 else if (!wasUp && isUp) {
                     // DOWN -> UP
-                    const lastDownEvent = await prisma.historicalEvent.findFirst({
+                    const lastDownEvent = await (prisma as any).historicalEvent.findFirst({
                         where: {
+                            tenantId,
                             serverName: session.serverName,
                             peerIp: session.peerIp,
                             eventType: 'DOWN'
@@ -262,6 +281,7 @@ export async function forceSyncLibreNMS(triggeredBy: string = 'Worker') {
 
                     await (prisma as any).historicalEvent.create({
                         data: {
+                            tenantId,
                             serverName: session.serverName,
                             eventTimestamp: new Date(),
                             deviceName: session.deviceName,
@@ -288,9 +308,9 @@ export async function forceSyncLibreNMS(triggeredBy: string = 'Worker') {
         }
 
         // --- Cleanup: Remove stale sessions from Redis ---
-        const storedKeys = await redis.keys(`BgpSession:${device.hostname}:*`);
+        const storedKeys = await redis.keys(`BgpSession:${tenantId}:${device.hostname}:*`);
         const activeKeys = new Set(
-            activeSessions.map((s) => `BgpSession:${device.hostname}:${device.id}:${s.peerIp}`)
+            activeSessions.map((s) => `BgpSession:${tenantId}:${device.hostname}:${device.id}:${s.peerIp}`)
         );
 
         const staleKeys = storedKeys.filter(key => !activeKeys.has(key));
@@ -320,6 +340,7 @@ export async function forceSyncLibreNMS(triggeredBy: string = 'Worker') {
                 // Insert new entries
                 await (prisma as any).bgpLog.createMany({
                     data: logEntries.map(e => ({
+                        tenantId,
                         deviceId: device.id,
                         deviceName: device.hostname,
                         peerIp: e.peerIp,
@@ -334,5 +355,5 @@ export async function forceSyncLibreNMS(triggeredBy: string = 'Worker') {
         }
     }
 
-    console.log(`[${new Date().toISOString()}] Synchronization ${triggeredBy} cycle complete.`);
+    console.log(`[${new Date().toISOString()}] [${tenantSlug}] Polling cycle complete.`);
 }
