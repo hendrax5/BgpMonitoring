@@ -20,7 +20,6 @@ export default function RegisterPage() {
         <div className="min-h-screen flex items-center justify-center p-4"
             style={{ background: 'linear-gradient(135deg, #0a0f1a 0%, #0d1520 100%)' }}>
             <div className="w-full max-w-md">
-                {/* Logo */}
                 <div className="text-center mb-8">
                     <div className="inline-flex items-center gap-3 mb-4">
                         <div className="w-10 h-10 rounded-xl flex items-center justify-center"
@@ -33,7 +32,6 @@ export default function RegisterPage() {
                     <p className="text-sm" style={{ color: '#64748b' }}>Set up your organization to get started</p>
                 </div>
 
-                {/* Card */}
                 <div className="card p-8 space-y-5">
                     {error && (
                         <div className="p-3 rounded-lg text-sm font-medium"
@@ -41,46 +39,27 @@ export default function RegisterPage() {
                             {error}
                         </div>
                     )}
-
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div>
-                            <label className="block text-xs font-bold uppercase tracking-widest mb-2" style={{ color: '#64748b' }}>
-                                Organization Name
-                            </label>
-                            <input
-                                type="text" name="orgName" required
-                                placeholder="PT Mitra Network"
-                                className="form-input w-full"
-                            />
+                            <label className="block text-xs font-bold uppercase tracking-widest mb-2" style={{ color: '#64748b' }}>Organization Name</label>
+                            <input type="text" name="orgName" required placeholder="PT Mitra Network" className="form-input w-full" />
                         </div>
                         <div>
-                            <label className="block text-xs font-bold uppercase tracking-widest mb-2" style={{ color: '#64748b' }}>
-                                Admin Username
-                            </label>
-                            <input
-                                type="text" name="username" required
-                                placeholder="admin"
-                                className="form-input w-full"
-                            />
+                            <label className="block text-xs font-bold uppercase tracking-widest mb-2" style={{ color: '#64748b' }}>Admin Username</label>
+                            <input type="text" name="username" required placeholder="admin" className="form-input w-full" />
                         </div>
                         <div>
                             <label className="block text-xs font-bold uppercase tracking-widest mb-2" style={{ color: '#64748b' }}>
                                 Password <span style={{ color: '#475569' }}>(min 8 chars)</span>
                             </label>
-                            <input
-                                type="password" name="password" required minLength={8}
-                                placeholder="••••••••"
-                                className="form-input w-full"
-                            />
+                            <input type="password" name="password" required minLength={8} placeholder="••••••••" className="form-input w-full" />
                         </div>
-                        <button
-                            type="submit" disabled={loading}
+                        <button type="submit" disabled={loading}
                             className="w-full py-3 rounded-xl font-bold text-white transition-all"
                             style={{ background: loading ? '#1e293b' : 'linear-gradient(135deg, #13a4ec, #0d47a1)' }}>
                             {loading ? 'Creating...' : 'Create Organization'}
                         </button>
                     </form>
-
                     <p className="text-center text-sm" style={{ color: '#475569' }}>
                         Already have an account?{' '}
                         <Link href="/login" className="font-bold hover:underline" style={{ color: '#13a4ec' }}>Sign in</Link>

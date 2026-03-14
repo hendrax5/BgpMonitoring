@@ -85,6 +85,12 @@ export default function AlarmManager() {
     const poll = useCallback(async () => {
         try {
             const data = await fetch('/api/status').then(r => r.json());
+            // If not authenticated (e.g. on login/register page), stop polling
+            if (data.notAuthenticated) {
+                if (pollIntervalRef.current) { clearInterval(pollIntervalRef.current); pollIntervalRef.current = null; }
+                stopAlarm();
+                return;
+            }
             setDownCount(data.downCount);
             setDownSessions(data.downSessions || []);
             const isSnoozed = snoozedUntil !== null && Date.now() < snoozedUntil;
@@ -98,6 +104,7 @@ export default function AlarmManager() {
         pollIntervalRef.current = setInterval(poll, POLL_INTERVAL_MS);
         return () => { if (pollIntervalRef.current) clearInterval(pollIntervalRef.current); stopAlarm(); };
     }, [poll, stopAlarm]);
+
 
     // Hide entirely when everything OK and not snoozed
     if (downCount === 0 && !alarmActive && !snoozedUntil) return null;

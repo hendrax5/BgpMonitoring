@@ -10,8 +10,11 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
   const session = await requireSession();
   const { device, sort, status, search } = await searchParams;
 
-  // Scoped Redis keys for this tenant
-  const allRedisKeys = await redis.keys(`BgpSession:${session.tenantId}:*`);
+  const isSuperAdmin = session.role === 'superadmin';
+
+  // Superadmin: see ALL tenants' sessions; regular user: only their tenant
+  const redisPattern = isSuperAdmin ? 'BgpSession:*' : `BgpSession:${session.tenantId}:*`;
+  const allRedisKeys = await redis.keys(redisPattern);
   let allSessionsRaw: any[] = [];
   
   if (allRedisKeys.length > 0) {
@@ -28,19 +31,27 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
   const upSessions = filteredSessionsByDevice.filter(s => s.bgpState === 'Established').length;
   const downSessions = totalSessions - upSessions;
 
-  // Latest 5 BGP events from DB (state changes recorded by worker) — scoped to tenant
+  // Latest BGP events — superadmin sees all, regular user sees their tenant
   const latestDbEvents = await (prisma as any).historicalEvent.findMany({
-    where: { tenantId: session.tenantId },
+    where: isSuperAdmin ? {} : { tenantId: session.tenantId },
     orderBy: { eventTimestamp: 'desc' },
-    take: 5
+    take: 5,
+    include: isSuperAdmin ? { tenant: { select: { slug: true, name: true } } } : undefined,
   });
 
-  // Configured devices — scoped to tenant
+  // Configured devices — superadmin sees all tenants
   const configuredDevices = await (prisma as any).routerDevice.findMany({
-    where: { tenantId: session.tenantId },
-    select: { id: true, hostname: true, ipAddress: true, vendor: true },
+    where: isSuperAdmin ? {} : { tenantId: session.tenantId },
+    select: { id: true, hostname: true, ipAddress: true, vendor: true, tenantId: true },
     orderBy: { hostname: 'asc' }
   });
+
+  // Tenant map for superadmin labels
+  let tenantMap: Record<string, string> = {};
+  if (isSuperAdmin) {
+    const tenants = await (prisma as any).tenant.findMany({ select: { id: true, slug: true, name: true } });
+    tenantMap = Object.fromEntries(tenants.map((t: any) => [t.id, t.name]));
+  }
 
   // Where clause (in-memory filtering)
   let allSessions = [...filteredSessionsByDevice];
