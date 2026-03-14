@@ -78,7 +78,11 @@ export async function fetchLibreNmsBgpEvents(options?: { limit?: number; search?
         }
     }));
 
+    // Filter: only show events from the last 2 days
+    const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+    const recentEvents = allEvents.filter(e => new Date(e.datetime) >= twoDaysAgo);
+
     // Sort newest first, take top N
-    allEvents.sort((a, b) => new Date(b.datetime).getTime() - new Date(a.datetime).getTime());
-    return allEvents.slice(0, limit);
+    recentEvents.sort((a, b) => new Date(b.datetime).getTime() - new Date(a.datetime).getTime());
+    return recentEvents.slice(0, limit);
 }
