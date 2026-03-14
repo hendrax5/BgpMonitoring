@@ -27,10 +27,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
   const upSessions = filteredSessionsByDevice.filter(s => s.bgpState === 'Established').length;
   const downSessions = totalSessions - upSessions;
 
-  // Latest 10 BGP events from DB (state changes recorded by worker)
+  // Latest 5 BGP events from DB (state changes recorded by worker)
   const latestDbEvents = await (prisma as any).historicalEvent.findMany({
     orderBy: { eventTimestamp: 'desc' },
-    take: 10
+    take: 5
   });
 
   // Configured devices for LiveEventsPanel (SSH log viewer)
@@ -230,10 +230,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
         {/* Latest BGP Events — from DB (state changes) */}
         <div className="card overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
-            <div>
-              <h3 className="font-bold text-white">Latest BGP Events</h3>
-              <p className="text-xs mt-0.5" style={{ color: '#64748b' }}>State changes recorded by worker — last 10</p>
-            </div>
+            <h3 className="font-bold text-white">Latest BGP Events</h3>
             <Link href="/reports" className="text-xs font-bold hover:underline" style={{ color: '#13a4ec' }}>View All →</Link>
           </div>
           {latestDbEvents.length === 0 ? (
@@ -243,32 +240,92 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
               <p className="text-xs" style={{ color: '#475569' }}>Events are recorded when BGP session state changes (UP↔DOWN).</p>
             </div>
           ) : (
-            <div className="divide-y divide-white/[0.05]">
-              {latestDbEvents.map((ev: any) => (
-                <div key={ev.eventId} className="px-4 py-3 flex items-start gap-3 hover:bg-white/[0.02]">
-                  <span className="w-2 h-2 rounded-full flex-shrink-0 mt-1.5"
-                    style={{ backgroundColor: ev.eventType === 'UP' ? '#10b981' : '#f43f5e' }} />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                      <code className="text-xs font-mono font-bold text-white">{ev.peerIp}</code>
-                      {ev.peerDescription && (
-                        <span className="text-xs" style={{ color: '#94a3b8' }}>{ev.peerDescription}</span>
-                      )}
-                      <span className="text-[9px] px-1.5 py-0.5 rounded font-bold uppercase"
-                        style={{
-                          backgroundColor: ev.eventType === 'UP' ? 'rgba(16,185,129,0.15)' : 'rgba(244,63,94,0.15)',
-                          color: ev.eventType === 'UP' ? '#10b981' : '#f43f5e'
-                        }}>{ev.eventType}</span>
-                    </div>
-                    <p className="text-[11px]" style={{ color: '#64748b' }}>
-                      {ev.deviceName} — AS{ev.asn?.toString()} {ev.organizationName}
-                    </p>
-                    <p className="text-[10px] mt-0.5" style={{ color: '#475569' }}>
-                      {new Date(ev.eventTimestamp).toLocaleString('id-ID')}
-                    </p>
-                  </div>
-                </div>
-              ))}
+            <div className="overflow-x-auto">
+              <table className="w-full data-table">
+                <thead>
+                  <tr>
+                    <th>Severity</th>
+                    <th>Timestamp</th>
+                    <th>Peer Info</th>
+                    <th>Event / Change</th>
+                    <th>Downtime</th>
+                    <th style={{ textAlign: 'right' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {latestDbEvents.map((ev: any) => {
+                    const isDown = ev.eventType === 'DOWN';
+                    const isUp = ev.eventType === 'UP';
+                    const sevColor = isDown ? '#f43f5e' : '#13a4ec';
+                    const sevLabel = isDown ? 'Critical' : 'Recovery';
+                    const fmtRelative = (date: Date) => {
+                      const diff = Math.floor((Date.now() - date.getTime()) / 60000);
+                      if (diff < 1) return 'just now';
+                      if (diff < 60) return `${diff}m ago`;
+                      const h = Math.floor(diff / 60);
+                      if (h < 24) return `${h}h ago`;
+                      return `${Math.floor(h / 24)}d ago`;
+                    };
+                    const fmtDur = (sec: number | null) => {
+                      if (!sec) return '—';
+                      const m = Math.floor(sec / 60);
+                      if (m < 1) return `${sec}s`;
+                      if (m < 60) return `${m}m ${sec % 60}s`;
+                      const h = Math.floor(m / 60);
+                      return `${h}h ${m % 60}m`;
+                    };
+                    return (
+                      <tr key={ev.eventId}>
+                        <td>
+                          <div className="flex items-center gap-2">
+                            <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: sevColor }} />
+                            <span className="text-xs font-bold uppercase" style={{ color: sevColor }}>{sevLabel}</span>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="text-sm font-medium text-white">{new Date(ev.eventTimestamp).toLocaleString('id-ID')}</div>
+                          <div className="text-xs" style={{ color: '#64748b' }}>{fmtRelative(new Date(ev.eventTimestamp))}</div>
+                        </td>
+                        <td>
+                          <Link href={`/peers/${encodeURIComponent(ev.peerIp)}`} className="text-sm font-bold hover:opacity-75" style={{ color: '#13a4ec' }}>
+                            {ev.peerIp}
+                          </Link>
+                          {ev.peerDescription && (
+                            <div className="text-xs font-medium" style={{ color: '#94a3b8' }}>{ev.peerDescription}</div>
+                          )}
+                          <div className="text-xs" style={{ color: '#64748b' }}>AS{ev.asn?.toString()} · {ev.organizationName}</div>
+                        </td>
+                        <td>
+                          <div className="flex items-center gap-2">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold"
+                              style={{ backgroundColor: isDown ? 'rgba(16,185,129,0.12)' : 'rgba(244,63,94,0.12)', color: isDown ? '#10b981' : '#f43f5e' }}>
+                              {isDown ? 'Established' : 'Any State'}
+                            </span>
+                            <span className="material-symbols-outlined text-sm" style={{ color: '#475569' }}>arrow_forward</span>
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold"
+                              style={{ backgroundColor: isDown ? 'rgba(244,63,94,0.12)' : 'rgba(19,164,236,0.12)', color: isDown ? '#f43f5e' : '#13a4ec' }}>
+                              {isDown ? 'Down' : 'Recovered'}
+                            </span>
+                          </div>
+                          <div className="text-xs mt-0.5" style={{ color: '#475569' }}>{ev.deviceName}</div>
+                        </td>
+                        <td>
+                          <span className="font-medium text-sm" style={{ color: ev.downtimeDuration ? '#f59e0b' : '#475569' }}>
+                            {fmtDur(ev.downtimeDuration)}
+                          </span>
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          <Link href={`/peers/${encodeURIComponent(ev.peerIp)}`}
+                            className="inline-flex items-center text-xs px-2 py-1 rounded"
+                            style={{ color: '#13a4ec', border: '1px solid rgba(19,164,236,0.25)' }}>
+                            View
+                          </Link>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
