@@ -29,11 +29,6 @@ export class MikrotikPoller extends BasePoller {
             }
         }
 
-        // DEBUG: print raw output to see actual RouterOS format
-        console.log(`[MikroTik DEBUG] ${this.device.hostname} isV7=${isV7} outputLen=${output.length}`);
-        if (output.length > 0) console.log(`[MikroTik DEBUG] First 800 chars:\n${output.substring(0, 800)}`);
-        else console.log('[MikroTik DEBUG] Empty output — SSH connect may have failed or no BGP peers');
-
         return isV7 ? this.parseV7(output) : this.parseV6(output);
     }
 
@@ -47,28 +42,50 @@ export class MikrotikPoller extends BasePoller {
      */
     private parseV7(output: string): BgpPeerState[] {
         const peers: BgpPeerState[] = [];
-        // Split on lines starting with digit (entry separator)
-        const blocks = output.split(/\n(?=\s*\d+\s)/);
+
+        // RouterOS v7 uses continuation lines with dot-prefix: ".as=", ".id="
+        // Split blocks on lines that start with digit(s) (entry number)
+        // Example:
+        //    0   name="peer-name"
+        //        remote.address=10.0.0.1
+        //    .as=65001 .id=10.0.0.1
+        //        state=established
+        const blocks = output.split(/\n(?=\s*\d+\s+)/);
 
         for (const block of blocks) {
             if (!block.trim()) continue;
 
-            // Extract fields — v7 uses dot notation (remote.address, remote.as)
-            const ipMatch = block.match(/remote\.address=([\da-fA-F:.]+)/);
-            const asnMatch = block.match(/remote\.as=(\d+)/);
-            const stateMatch = block.match(/state=([a-zA-Z-]+)/i);
-            const nameMatch = block.match(/name="?([^"\n\s]+)"?/);
-            // v7: prefix-count (received), sent-prefix-count (sent)
-            const rxMatch = block.match(/prefix-count=(\d+)/);
-            const txMatch = block.match(/sent-prefix-count=(\d+)/);
+            // Flatten block: join all lines (remove leading whitespace/dots from continuation)
+            const flat = block.replace(/\n\s*/g, ' ');
 
-            if (!ipMatch || !asnMatch || !stateMatch) continue;
+            const nameMatch = flat.match(/name="([^"]+)"/);
+            // peer IP: remote.address=X or .address=X
+            const ipMatch = flat.match(/(?:remote\.address|\.address)=([\da-fA-F:.\[\]]+)/);
+            // ASN: remote.as=X or .as=X
+            const asnMatch = flat.match(/(?:remote\.as|(?<![a-z])\.as)=(\d+)/);
+            // state: state=established or .state=
+            const stateMatch = flat.match(/(?:^|[\s.])state=([a-zA-Z-]+)/i);
+            // prefix-count for received, sent-prefix-count for sent
+            const rxMatch = flat.match(/(?<![a-z-])prefix-count=(\d+)/);
+            const txMatch = flat.match(/sent-prefix-count=(\d+)/);
 
-            const state = stateMatch[1].toLowerCase();
+            if (!ipMatch || !asnMatch) continue;
+
+            const rawIp = ipMatch[1].replace(/[\[\]]/g, ''); // strip IPv6 brackets if any
+            const rawAsn = parseInt(asnMatch[1], 10);
+            let bgpState = 'unknown';
+            if (stateMatch) {
+                const s = stateMatch[1].toLowerCase();
+                bgpState = s === 'established' ? 'Established' : s;
+            }
+
+            // Skip if ASN parse failed
+            if (isNaN(rawAsn)) continue;
+
             peers.push({
-                peerIp: ipMatch[1],
-                remoteAsn: parseInt(asnMatch[1], 10),
-                bgpState: state === 'established' ? 'Established' : state,
+                peerIp: rawIp,
+                remoteAsn: rawAsn,
+                bgpState,
                 acceptedPrefixes: rxMatch ? parseInt(rxMatch[1], 10) : 0,
                 advertisedPrefixes: txMatch ? parseInt(txMatch[1], 10) : 0,
                 description: nameMatch?.[1]?.trim() || undefined,
