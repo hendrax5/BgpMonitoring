@@ -10,12 +10,26 @@ const navItems = [
   { href: '/settings', label: 'Settings', icon: 'settings' },
 ];
 
-function SidebarInner() {
+const adminItems = [
+  { href: '/admin', label: 'Overview', icon: 'admin_panel_settings' },
+  { href: '/admin/devices', label: 'Device Assignment', icon: 'device_hub' },
+  { href: '/admin/settings', label: 'Platform Settings', icon: 'tune' },
+];
+
+interface SidebarProps {
+  isSuperAdmin?: boolean;
+  appName?: string;
+  monitoringName?: string;
+  companyName?: string;
+}
+
+function SidebarInner({ isSuperAdmin, appName, monitoringName, companyName }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  if (pathname === '/login') return null;
+  // Hide sidebar completely on auth pages
+  if (pathname === '/login' || pathname === '/register') return null;
 
   const currentStatus = searchParams.get('status') || 'all';
 
@@ -25,6 +39,9 @@ function SidebarInner() {
     else params.set('status', val);
     router.push(`/?${params.toString()}`);
   };
+
+  const displayCompany = companyName || 'BGP Monitor';
+  const displayMonitoring = monitoringName || 'BGP Monitoring';
 
   return (
     <aside
@@ -40,10 +57,20 @@ function SidebarInner() {
         <div className="flex items-center justify-center w-8 h-8 rounded-lg flex-shrink-0" style={{ backgroundColor: '#13a4ec' }}>
           <span className="material-symbols-outlined text-white text-lg">hub</span>
         </div>
-        <h1 className="font-bold text-sm tracking-tight text-white">
-          ION <span style={{ color: '#13a4ec' }}>BGP Monitoring</span>
-        </h1>
+        <div className="min-w-0">
+          <h1 className="font-bold text-xs text-white truncate">{displayCompany}</h1>
+          <p className="text-[10px] truncate" style={{ color: '#13a4ec' }}>{displayMonitoring}</p>
+        </div>
       </div>
+
+      {/* Superadmin Banner */}
+      {isSuperAdmin && (
+        <div className="mx-3 mt-3 px-3 py-2 rounded-lg flex items-center gap-2"
+          style={{ backgroundColor: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)' }}>
+          <span className="material-symbols-outlined text-sm" style={{ color: '#f59e0b' }}>admin_panel_settings</span>
+          <span className="text-[11px] font-bold" style={{ color: '#f59e0b' }}>Superadmin Mode</span>
+        </div>
+      )}
 
       {/* Main Nav */}
       <div className="px-3 pt-5">
@@ -69,7 +96,34 @@ function SidebarInner() {
         </nav>
       </div>
 
-      {/* Quick Filter — dropdown with visible colors */}
+      {/* Admin Section — only for superadmin */}
+      {isSuperAdmin && (
+        <div className="px-3 pt-5 mt-2 border-t" style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
+          <p className="px-2 mb-2 text-[10px] font-bold uppercase tracking-widest" style={{ color: '#f59e0b' }}>
+            Platform Admin
+          </p>
+          <nav className="space-y-0.5">
+            {adminItems.map((item) => {
+              const isActive = item.href === '/admin'
+                ? pathname === '/admin'
+                : pathname.startsWith(item.href);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`nav-link${isActive ? ' active' : ''}`}
+                  style={{ color: isActive ? '#f59e0b' : undefined }}
+                >
+                  <span className="material-symbols-outlined text-[20px]">{item.icon}</span>
+                  <span>{item.label}</span>
+                </Link>
+              );
+            })}
+          </nav>
+        </div>
+      )}
+
+      {/* Quick Filter */}
       <div className="px-3 pt-5 mt-3 border-t" style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
         <p className="px-2 mb-2 text-[10px] font-bold uppercase tracking-widest" style={{ color: '#475569' }}>
           Quick Filter
@@ -99,11 +153,9 @@ function SidebarInner() {
               <option value="Established" style={{ backgroundColor: '#131f28', color: '#10b981' }}>● Established</option>
               <option value="down" style={{ backgroundColor: '#131f28', color: '#f43f5e' }}>● Down / Idle</option>
             </select>
-            {/* Custom chevron */}
             <span className="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-sm"
               style={{ color: '#475569' }}>expand_more</span>
           </div>
-          {/* Active indicator dot */}
           {currentStatus !== 'all' && (
             <div className="flex items-center gap-1.5 mt-1.5 px-1">
               <span className="inline-block w-1.5 h-1.5 rounded-full"
@@ -132,12 +184,12 @@ function SidebarInner() {
   );
 }
 
-export default function Sidebar() {
+export default function Sidebar(props: SidebarProps) {
   return (
     <Suspense fallback={
-        <aside className="w-56 flex-shrink-0 flex flex-col border-r bg-[#0d1520] border-white/10 min-h-screen"></aside>
+      <aside className="w-56 flex-shrink-0 flex flex-col border-r bg-[#0d1520] border-white/10 min-h-screen"></aside>
     }>
-        <SidebarInner />
+      <SidebarInner {...props} />
     </Suspense>
   )
 }
