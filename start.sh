@@ -1,13 +1,9 @@
 #!/bin/sh
 
-# Wait for PostgreSQL to be ready (handled by docker-compose healthcheck)
-echo "Running Prisma Migrate Deploy..."
-prisma migrate deploy
+# Push Prisma schema to database (creates/updates tables)
+echo "Running Prisma DB Push..."
+prisma db push --accept-data-loss
 
-if [ $? -ne 0 ]; then
-    echo "⚠️ Prisma migrate failed, trying prisma db push..."
-    prisma db push --accept-data-loss
-fi
 
 # Start the background worker script via tsx in the background
 echo "Starting BGP Background Sync Worker..."
