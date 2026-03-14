@@ -158,6 +158,24 @@ export async function forceSyncLibreNMS(triggeredBy: string = 'Worker') {
         console.error("⚠️ Failed to load servers from database.", e);
     }
 
+    // --- Global Cleanup: Remove orphaned Redis sessions for deleted servers ---
+    try {
+        const allKeys = await redis.keys('BgpSession:*');
+        const validServerNames = new Set(servers.map(s => s.name));
+        const orphanedKeys = allKeys.filter(k => {
+            // Key format: BgpSession:SERVER_NAME:DEVICE_ID:PEER_IP
+            const parts = k.split(':');
+            return parts.length >= 2 && !validServerNames.has(parts[1]);
+        });
+        
+        if (orphanedKeys.length > 0) {
+            await redis.del(...orphanedKeys);
+            console.log(`\ud83d\uddd1\ufe0f Global Cleanup: Removed ${orphanedKeys.length} orphaned sessions from Redis for deleted APIs.`);
+        }
+    } catch (err) {
+        console.error("⚠️ Failed to clean up orphaned Redis keys", err);
+    }
+
     if (servers.length === 0) {
         console.warn("⚠️ No LibreNMS targets configured in the Database. Please add one via the Settings UI.");
 
