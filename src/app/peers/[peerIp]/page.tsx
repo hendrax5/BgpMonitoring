@@ -21,6 +21,8 @@ export default async function PeerDetailsPage({ params }: { params: Promise<{ pe
         peer.asnDictionary = asnRec;
         peer.stateChangedAt = new Date(peer.stateChangedAt);
         peer.lastUpdated = new Date(peer.lastUpdated);
+        // Fallback for old sessions where deviceIp was an empty string
+        peer.deviceIp = peer.deviceIp || peer.deviceName;
     }
 
     if (!peer) return notFound();
