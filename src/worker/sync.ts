@@ -206,7 +206,7 @@ async function pollTenant(tenantId: string, tenantSlug: string) {
             const isUp = peer.bgpState === 'Established';
             const orgName = await lookupAsnName(BigInt(peer.remoteAsn));
             
-            // Map the parsed data exactly onto the old LibreNMS expected schema
+            // Map the parsed data exactly onto the expected schema
             const session = {
                 serverName: device.hostname,
                 deviceId: device.id,
@@ -218,7 +218,8 @@ async function pollTenant(tenantId: string, tenantSlug: string) {
                 bgpState: peer.bgpState,
                 acceptedPrefixes: peer.acceptedPrefixes,
                 advertisedPrefixes: peer.advertisedPrefixes,
-                peerDescription: peer.description || '',  // ← from vendor poller
+                peerDescription: peer.description || '',
+                uptimeSeconds: peer.uptime ?? null,  // ← actual BGP peer uptime from router
             };
 
             const redisKey = `BgpSession:${tenantId}:${session.serverName}:${session.deviceId}:${session.peerIp}`;

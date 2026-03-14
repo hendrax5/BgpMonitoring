@@ -1,25 +1,56 @@
 import { prisma } from '@/lib/prisma';
+import { requireSession } from '@/lib/auth';
 import { addRouterDevice, updateRouterDevice, deleteRouterDevice, getTelegramSettings, saveTelegramSettings } from '@/app/actions/settings';
 import { addUser, updateUser, deleteUser } from '@/app/actions/users';
 import SyncButton from '@/app/settings/components/SyncButton';
 import RouterTestButton from '@/app/settings/components/RouterTestButton';
+import { revalidatePath } from 'next/cache';
+
+async function saveBranding(formData: FormData) {
+    'use server';
+    const session = await requireSession();
+    const entries = ['monitoring_name', 'company_name'];
+    for (const key of entries) {
+        const value = formData.get(key) as string | null;
+        if (value !== null) {
+            await (prisma as any).appSettings.upsert({
+                where: { tenantId_key: { tenantId: session.tenantId, key } },
+                create: { tenantId: session.tenantId, key, value },
+                update: { value },
+            });
+        }
+    }
+    revalidatePath('/settings');
+}
 
 export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ error?: string; edit?: string; editUser?: string }> }) {
+    const session = await requireSession();
     const { error, edit, editUser } = await searchParams;
     const editId = edit ? parseInt(edit) : null;
-    const devices = await prisma.routerDevice.findMany({ 
+    const devices = await (prisma as any).routerDevice.findMany({
+        where: { tenantId: session.tenantId },
         orderBy: { createdAt: 'desc' },
         include: { sshCredential: true }
     });
     const editDevice = editId ? devices.find((d: any) => d.id === editId) : null;
 
     const editUserId = editUser ? parseInt(editUser) : null;
-    const users = await prisma.appUser.findMany({ orderBy: { createdAt: 'desc' } });
-    const editUserObj = editUserId ? users.find(u => u.id === editUserId) : null;
+    const users = await (prisma as any).appUser.findMany({
+        where: { tenantId: session.tenantId },
+        orderBy: { createdAt: 'desc' }
+    });
+    const editUserObj = editUserId ? users.find((u: any) => u.id === editUserId) : null;
 
     const telegram = await getTelegramSettings();
 
+    // Per-tenant branding settings
+    const brandingRows = await (prisma as any).appSettings.findMany({
+        where: { tenantId: session.tenantId, key: { in: ['monitoring_name', 'company_name'] } }
+    });
+    const branding: Record<string, string> = Object.fromEntries(brandingRows.map((r: any) => [r.key, r.value]));
+
     return (
+
         <div className="min-h-screen">
             {/* Top Header */}
             <header className="sticky top-0 z-40 flex items-center justify-between px-6 py-3 border-b"
@@ -331,7 +362,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {users.map((u) => (
+                                    {users.map((u: any) => (
                                         <tr key={u.id}>
                                             <td>
                                                 <div className="font-bold text-white flex items-center gap-2">
@@ -453,6 +484,55 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                             </code>
                             <p className="text-xs mt-3" style={{ color: '#475569' }}>
                                 Cari field <span className="text-white font-mono">&quot;chat&quot;: {'{'}"id": <span className="text-[#10b981]">-100xxxxxxx</span>{'}'}</span> — angka itulah Chat ID-nya.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="mt-8">
+                    <h3 className="text-base font-bold text-white mb-1">Branding & Tampilan</h3>
+                    <p className="text-xs mb-4" style={{ color: '#64748b' }}>Kustomisasi nama monitoring dan brand yang tampil di sidebar untuk organisasi Anda.</p>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="md:col-span-1 card p-5">
+                            <h4 className="font-bold text-white mb-1">Nama Sidebar</h4>
+                            <p className="text-xs mb-4" style={{ color: '#64748b' }}>Isi untuk mengganti nama default di sidebar kiri.</p>
+                            <form action={saveBranding} className="space-y-3">
+                                <div>
+                                    <label className="block text-xs font-medium mb-1" style={{ color: '#64748b' }}>Nama Monitoring</label>
+                                    <input type="text" name="monitoring_name"
+                                        defaultValue={branding['monitoring_name'] || ''}
+                                        placeholder="e.g. BGP Monitoring"
+                                        className="form-input w-full" />
+                                    <p className="text-[11px] mt-1" style={{ color: '#475569' }}>Tampil di sidebar sebagai subtitle logo</p>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-medium mb-1" style={{ color: '#64748b' }}>Nama Organisasi (Sidebar)</label>
+                                    <input type="text" name="company_name"
+                                        defaultValue={branding['company_name'] || ''}
+                                        placeholder="e.g. PT Mitra Net"
+                                        className="form-input w-full" />
+                                    <p className="text-[11px] mt-1" style={{ color: '#475569' }}>Tampil di sidebar sebagai nama utama logo</p>
+                                </div>
+                                <button type="submit"
+                                    className="w-full py-2 text-sm font-bold rounded-lg text-white"
+                                    style={{ backgroundColor: '#13a4ec' }}>
+                                    Simpan Branding
+                                </button>
+                            </form>
+                        </div>
+                        <div className="md:col-span-2 card p-5">
+                            <h4 className="font-bold text-white mb-3">Preview Sidebar</h4>
+                            <div className="flex items-center gap-3 p-4 rounded-xl" style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px dashed rgba(255,255,255,0.1)' }}>
+                                <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#13a4ec' }}>
+                                    <span className="material-symbols-outlined text-white text-lg">hub</span>
+                                </div>
+                                <div>
+                                    <p className="font-bold text-sm text-white">{branding['company_name'] || 'Nama Organisasi'}</p>
+                                    <p className="text-xs" style={{ color: '#13a4ec' }}>{branding['monitoring_name'] || 'BGP Monitoring'}</p>
+                                </div>
+                            </div>
+                            <p className="text-[11px] mt-3" style={{ color: '#475569' }}>
+                                Perubahan akan tampil setelah menyimpan dan refresh halaman.
                             </p>
                         </div>
                     </div>

@@ -23,10 +23,13 @@ export class CiscoPoller extends BasePoller {
             if (line.includes('Neighbor') && line.includes('State/PfxRcd')) { headerFound = true; continue; }
             if (!headerFound) continue;
             const parts = line.trim().split(/\s+/);
+            // Cisco summary columns: Neighbor V AS MsgRcvd MsgSent TblVer InQ OutQ Up/Down State/PfxRcd
+            // Up/Down is at index 8 (0-based), State/PfxRcd is last
             if (parts.length >= 9 && /^[\d.]+$/.test(parts[0])) {
                 const peerIp = parts[0];
                 const remoteAsn = parseInt(parts[2], 10);
                 const stateOrPfx = parts[parts.length - 1];
+                const upDownStr = parts[8] || '';
                 let bgpState = 'Idle', acceptedPrefixes = 0;
                 if (/^\d+$/.test(stateOrPfx)) { bgpState = 'Established'; acceptedPrefixes = parseInt(stateOrPfx, 10); }
                 else { bgpState = stateOrPfx; }
@@ -34,11 +37,13 @@ export class CiscoPoller extends BasePoller {
                     peerIp, remoteAsn, bgpState, acceptedPrefixes,
                     advertisedPrefixes: sentMap.get(peerIp) ?? 0,
                     description: descMap.get(peerIp),
+                    uptime: parseCiscoUpdown(upDownStr),
                 });
             }
         }
         return peers;
     }
+
 
     override async fetchBgpLog(): Promise<BgpEventLog[]> {
         if (!this.device.sshCredential) return [];
@@ -75,6 +80,21 @@ function parseCiscoPrefixSent(output: string): Map<string, number> {
         if (sentMatch && currentIp) map.set(currentIp, parseInt(sentMatch[1], 10));
     }
     return map;
+}
+
+/** Parse Cisco Up/Down column (e.g. "00:10:30", "2d10h", "1w2d", "never") to seconds */
+function parseCiscoUpdown(s: string): number | undefined {
+    if (!s || s === 'never') return undefined;
+    // hh:mm:ss or h:mm:ss
+    const hms = s.match(/^(\d+):(\d{2}):(\d{2})$/);
+    if (hms) return parseInt(hms[1]) * 3600 + parseInt(hms[2]) * 60 + parseInt(hms[3]);
+    // Xwk Xd or Xd Xh
+    let secs = 0;
+    const w = s.match(/(\d+)w/); if (w) secs += parseInt(w[1]) * 604800;
+    const d = s.match(/(\d+)d/); if (d) secs += parseInt(d[1]) * 86400;
+    const h = s.match(/(\d+)h/); if (h) secs += parseInt(h[1]) * 3600;
+    const m = s.match(/(\d+)m/); if (m) secs += parseInt(m[1]) * 60;
+    return secs > 0 ? secs : undefined;
 }
 
 export function parseSyslogBgp(output: string): BgpEventLog[] {

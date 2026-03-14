@@ -40,12 +40,24 @@ export default async function RootLayout({
   let companyName = '';
 
   try {
+    // Read GlobalSettings first (superadmin-level defaults)
     const globalSettings = await (prisma as any).globalSettings.findMany();
-    const cfg: Record<string, string> = Object.fromEntries(globalSettings.map((s: any) => [s.key, s.value]));
-    appName = cfg['app_name'] || appName;
-    monitoringName = cfg['monitoring_name'] || monitoringName;
-    companyName = cfg['company_name'] || companyName;
-  } catch { /* GlobalSettings table might not exist yet on first run */ }
+    const gCfg: Record<string, string> = Object.fromEntries(globalSettings.map((s: any) => [s.key, s.value]));
+    appName = gCfg['app_name'] || appName;
+    monitoringName = gCfg['monitoring_name'] || monitoringName;
+    companyName = gCfg['company_name'] || companyName;
+
+    // Per-tenant branding overrides GlobalSettings (if user is logged in + has tenant branding)
+    if (session?.tenantId && session.role !== 'superadmin') {
+      const tenantSettings = await (prisma as any).appSettings.findMany({
+        where: { tenantId: session.tenantId, key: { in: ['monitoring_name', 'company_name'] } }
+      });
+      const tCfg: Record<string, string> = Object.fromEntries(tenantSettings.map((s: any) => [s.key, s.value]));
+      if (tCfg['monitoring_name']) monitoringName = tCfg['monitoring_name'];
+      if (tCfg['company_name']) companyName = tCfg['company_name'];
+    }
+  } catch { /* Tables might not exist yet on first run */ }
+
 
   return (
     <html lang="en" className="dark h-full">
