@@ -6,44 +6,37 @@ export class CiscoPoller extends BasePoller {
         if (!this.device.sshCredential) {
             throw new Error(`Cisco polling requires SSH credentials for ${this.device.hostname}`);
         }
-
         const ssh = new SshPoller(this.device.ipAddress, this.device.sshCredential);
-        // Get summary for state/prefixes
-        const summaryOutput = await ssh.exec('show bgp ipv4 unicast summary | include ^[0-9]');
-        // Get neighbors detail for descriptions
-        const neighborsOutput = await ssh.exec('show bgp neighbors | include (BGP neighbor|Description)');
 
-        const descMap = parseCiscoDescriptions(neighborsOutput);
+        // Run summary + neighbor detail in parallel
+        const [summaryOutput, neighborOutput] = await Promise.all([
+            ssh.exec('show bgp ipv4 unicast summary'),
+            ssh.exec('show bgp ipv4 unicast neighbors | include (Neighbor|Prefixes Current|advertis)').catch(() => ''),
+        ]);
+
+        const descMap = parseCiscoNeighborField(neighborOutput, 'Description');
+        const sentMap = parseCiscoPrefixSent(neighborOutput);
+
         const peers: BgpPeerState[] = [];
-
-        const lines = summaryOutput.split('\n');
-        for (const line of lines) {
+        let headerFound = false;
+        for (const line of summaryOutput.split('\n')) {
+            if (line.includes('Neighbor') && line.includes('State/PfxRcd')) { headerFound = true; continue; }
+            if (!headerFound) continue;
             const parts = line.trim().split(/\s+/);
             if (parts.length >= 9 && /^[\d.]+$/.test(parts[0])) {
                 const peerIp = parts[0];
                 const remoteAsn = parseInt(parts[2], 10);
                 const stateOrPfx = parts[parts.length - 1];
-                let bgpState = 'Idle';
-                let acceptedPrefixes = 0;
-
-                if (/^\d+$/.test(stateOrPfx)) {
-                    bgpState = 'Established';
-                    acceptedPrefixes = parseInt(stateOrPfx, 10);
-                } else {
-                    bgpState = stateOrPfx;
-                }
-
+                let bgpState = 'Idle', acceptedPrefixes = 0;
+                if (/^\d+$/.test(stateOrPfx)) { bgpState = 'Established'; acceptedPrefixes = parseInt(stateOrPfx, 10); }
+                else { bgpState = stateOrPfx; }
                 peers.push({
-                    peerIp,
-                    remoteAsn,
-                    bgpState,
-                    acceptedPrefixes,
-                    advertisedPrefixes: 0,
+                    peerIp, remoteAsn, bgpState, acceptedPrefixes,
+                    advertisedPrefixes: sentMap.get(peerIp) ?? 0,
                     description: descMap.get(peerIp),
                 });
             }
         }
-
         return peers;
     }
 
@@ -52,37 +45,48 @@ export class CiscoPoller extends BasePoller {
         try {
             const ssh = new SshPoller(this.device.ipAddress, this.device.sshCredential);
             const output = await ssh.exec('show logging | include BGP');
-            return parseSyslogBgp(output, 'cisco');
-        } catch {
-            return [];
-        }
+            return parseSyslogBgp(output);
+        } catch { return []; }
     }
 }
 
-function parseCiscoDescriptions(output: string): Map<string, string> {
+/** Parse `BGP neighbor is X.X.X.X ... Description: FOO` blocks */
+function parseCiscoNeighborField(output: string, field: string): Map<string, string> {
     const map = new Map<string, string>();
     let currentIp = '';
     for (const line of output.split('\n')) {
         const neighborMatch = line.match(/BGP neighbor is ([\d.]+)/);
-        const descMatch = line.match(/Description:\s*(.+)/);
+        const fieldMatch = line.match(new RegExp(`${field}:\\s*(.+)`));
         if (neighborMatch) currentIp = neighborMatch[1];
-        if (descMatch && currentIp) map.set(currentIp, descMatch[1].trim());
+        if (fieldMatch && currentIp) map.set(currentIp, fieldMatch[1].trim());
     }
     return map;
 }
 
-function parseSyslogBgp(output: string, _vendor: string): BgpEventLog[] {
+/** Parse sent prefix count from Cisco neighbor output */
+function parseCiscoPrefixSent(output: string): Map<string, number> {
+    const map = new Map<string, number>();
+    let currentIp = '';
+    for (const line of output.split('\n')) {
+        const neighborMatch = line.match(/BGP neighbor is ([\d.]+)/);
+        if (neighborMatch) currentIp = neighborMatch[1];
+        // "  Prefixes Current: 100 sent, 50 received" or "Prefix advertised X, suppressed Y"
+        const sentMatch = line.match(/(\d+)\s+sent/i) || line.match(/advertised\s+(\d+)/i);
+        if (sentMatch && currentIp) map.set(currentIp, parseInt(sentMatch[1], 10));
+    }
+    return map;
+}
+
+export function parseSyslogBgp(output: string): BgpEventLog[] {
     const events: BgpEventLog[] = [];
-    const ipRegex = /([\d.]+)/g;
     for (const line of output.split('\n')) {
         if (!line.trim()) continue;
-        const ips = line.match(ipRegex) || [];
-        const peerIp = ips.find(ip => ip.split('.').length === 4 && !ip.startsWith('255')) || '';
+        const ipMatch = line.match(/([\d]{1,3}\.[\d]{1,3}\.[\d]{1,3}\.[\d]{1,3})/);
         let eventType: 'UP' | 'DOWN' | 'INFO' = 'INFO';
         const lower = line.toLowerCase();
-        if (lower.includes('established') || lower.includes('up')) eventType = 'UP';
+        if (lower.includes('established') || lower.includes(' up')) eventType = 'UP';
         if (lower.includes('down') || lower.includes('reset') || lower.includes('idle')) eventType = 'DOWN';
-        events.push({ timestamp: new Date().toISOString(), peerIp, eventType, message: line.trim() });
+        events.push({ timestamp: new Date().toISOString(), peerIp: ipMatch?.[1] || '', eventType, message: line.trim() });
     }
     return events.slice(-30);
 }

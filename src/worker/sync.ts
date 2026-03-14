@@ -225,13 +225,14 @@ export async function forceSyncLibreNMS(triggeredBy: string = 'Worker') {
 
                 if (wasUp && !isUp) {
                     // UP -> DOWN
-                    await prisma.historicalEvent.create({
+                    await (prisma as any).historicalEvent.create({
                         data: {
                             serverName: session.serverName,
                             eventTimestamp: new Date(),
                             deviceName: session.deviceName,
                             deviceIp: session.deviceIp,
                             peerIp: session.peerIp,
+                            peerDescription: session.peerDescription || null,
                             asn: session.remoteAsn,
                             organizationName: orgName,
                             eventType: 'DOWN'
@@ -259,13 +260,14 @@ export async function forceSyncLibreNMS(triggeredBy: string = 'Worker') {
                         downEventId = lastDownEvent.eventId;
                     }
 
-                    await prisma.historicalEvent.create({
+                    await (prisma as any).historicalEvent.create({
                         data: {
                             serverName: session.serverName,
                             eventTimestamp: new Date(),
                             deviceName: session.deviceName,
                             deviceIp: session.deviceIp,
                             peerIp: session.peerIp,
+                            peerDescription: session.peerDescription || null,
                             asn: session.remoteAsn,
                             organizationName: orgName,
                             eventType: 'UP',
@@ -299,6 +301,37 @@ export async function forceSyncLibreNMS(triggeredBy: string = 'Worker') {
         }
 
         console.log(`✅ Completed ${device.hostname}: Processed ${activeSessions.length} sessions.`);
+
+        // --- Fetch & Save SSH BGP log to DB ---
+        try {
+            const logEntries = await poller.fetchBgpLog();
+            if (logEntries.length > 0) {
+                // Delete old entries (keep max 500 per device)
+                const count = await (prisma as any).bgpLog.count({ where: { deviceId: device.id } });
+                if (count > 450) {
+                    const oldest = await (prisma as any).bgpLog.findMany({
+                        where: { deviceId: device.id },
+                        orderBy: { fetchedAt: 'asc' },
+                        take: count - 450,
+                        select: { id: true }
+                    });
+                    await (prisma as any).bgpLog.deleteMany({ where: { id: { in: oldest.map((e: any) => e.id) } } });
+                }
+                // Insert new entries
+                await (prisma as any).bgpLog.createMany({
+                    data: logEntries.map(e => ({
+                        deviceId: device.id,
+                        deviceName: device.hostname,
+                        peerIp: e.peerIp,
+                        eventType: e.eventType,
+                        message: e.message,
+                    }))
+                });
+                console.log(`📜 Saved ${logEntries.length} SSH log entries for ${device.hostname}.`);
+            }
+        } catch (err: any) {
+            console.error(`⚠️ Failed to save BGP log for ${device.hostname}: ${err.message}`);
+        }
     }
 
     console.log(`[${new Date().toISOString()}] Synchronization ${triggeredBy} cycle complete.`);

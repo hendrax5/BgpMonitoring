@@ -6,38 +6,37 @@ export class HuaweiPoller extends BasePoller {
         if (!this.device.sshCredential) {
             throw new Error(`Huawei polling requires SSH credentials for ${this.device.hostname}`);
         }
-
         const ssh = new SshPoller(this.device.ipAddress, this.device.sshCredential);
-        const summaryOutput = await ssh.exec('display bgp peer');
-        // Get descriptions separately
-        const detailOutput = await ssh.exec('display bgp peer verbose').catch(() => '');
-        const descMap = parseHuaweiDescriptions(detailOutput);
+
+        // `display bgp peer` — summary table with PrefRcv in last col
+        // `display bgp peer verbose` — per-peer detail with sent/rcvd
+        const [summaryOutput, verboseOutput] = await Promise.all([
+            ssh.exec('display bgp peer'),
+            ssh.exec('display bgp peer verbose').catch(() => ''),
+        ]);
+
+        const descMap = parseHuaweiDescriptions(verboseOutput);
+        const sentMap = parseHuaweiPrefixSent(verboseOutput);
 
         const peers: BgpPeerState[] = [];
-        const lines = summaryOutput.split('\n');
         let headerFound = false;
-
-        for (const line of lines) {
-            if (line.includes('Peer') && line.includes('AS') && line.includes('State')) {
-                headerFound = true;
-                continue;
-            }
-            if (headerFound) {
-                const parts = line.trim().split(/\s+/);
-                // Huawei: 10.0.0.2  4  65001  10  10  0  00:10:00  Established  10
-                if (parts.length >= 8 && parts[0].match(/^[0-9.]+$/)) {
-                    const peerIp = parts[0];
-                    const remoteAsn = parseInt(parts[2], 10);
-                    const stateStr = parts[parts.length - 2];
-                    const prefixesStr = parts[parts.length - 1];
-                    const bgpState = stateStr.toLowerCase() === 'established' ? 'Established' : stateStr;
-                    const acceptedPrefixes = bgpState === 'Established' ? parseInt(prefixesStr, 10) || 0 : 0;
-
-                    peers.push({
-                        peerIp, remoteAsn, bgpState, acceptedPrefixes, advertisedPrefixes: 0,
-                        description: descMap.get(peerIp),
-                    });
-                }
+        for (const line of summaryOutput.split('\n')) {
+            if (line.includes('Peer') && line.includes('AS') && line.includes('State')) { headerFound = true; continue; }
+            if (!headerFound) continue;
+            const parts = line.trim().split(/\s+/);
+            // Huawei: IP  V  AS  MsgRcvd  MsgSent  OutQ  Up/Down  State  PrefRcv
+            if (parts.length >= 8 && /^[\d.]+$/.test(parts[0])) {
+                const peerIp = parts[0];
+                const remoteAsn = parseInt(parts[2], 10);
+                const stateStr = parts[parts.length - 2];
+                const prefixesStr = parts[parts.length - 1];
+                const bgpState = stateStr.toLowerCase() === 'established' ? 'Established' : stateStr;
+                const acceptedPrefixes = bgpState === 'Established' ? (parseInt(prefixesStr, 10) || 0) : 0;
+                peers.push({
+                    peerIp, remoteAsn, bgpState, acceptedPrefixes,
+                    advertisedPrefixes: sentMap.get(peerIp) ?? 0,
+                    description: descMap.get(peerIp),
+                });
             }
         }
         return peers;
@@ -49,9 +48,7 @@ export class HuaweiPoller extends BasePoller {
             const ssh = new SshPoller(this.device.ipAddress, this.device.sshCredential);
             const output = await ssh.exec('display logbuffer match BGP');
             return parseHuaweiLog(output);
-        } catch {
-            return [];
-        }
+        } catch { return []; }
     }
 }
 
@@ -67,6 +64,19 @@ function parseHuaweiDescriptions(output: string): Map<string, string> {
     return map;
 }
 
+function parseHuaweiPrefixSent(output: string): Map<string, number> {
+    const map = new Map<string, number>();
+    let currentIp = '';
+    for (const line of output.split('\n')) {
+        const peerMatch = line.match(/BGP peer is ([\d.a-fA-F:]+)/);
+        if (peerMatch) currentIp = peerMatch[1];
+        // "Prefixes advertised X, suppressed Y" or "Prefixes sent: X"
+        const sentMatch = line.match(/[Pp]refixes\s+(?:advertised|sent)[:\s]+(\d+)/);
+        if (sentMatch && currentIp) map.set(currentIp, parseInt(sentMatch[1], 10));
+    }
+    return map;
+}
+
 function parseHuaweiLog(output: string): BgpEventLog[] {
     const events: BgpEventLog[] = [];
     for (const line of output.split('\n')) {
@@ -74,7 +84,7 @@ function parseHuaweiLog(output: string): BgpEventLog[] {
         const ipMatch = line.match(/([\d]{1,3}\.[\d]{1,3}\.[\d]{1,3}\.[\d]{1,3})/);
         let eventType: 'UP' | 'DOWN' | 'INFO' = 'INFO';
         const lower = line.toLowerCase();
-        if (lower.includes('established') || lower.includes('up')) eventType = 'UP';
+        if (lower.includes('established') || lower.includes(' up')) eventType = 'UP';
         if (lower.includes('down') || lower.includes('idle') || lower.includes('reset')) eventType = 'DOWN';
         events.push({ timestamp: new Date().toISOString(), peerIp: ipMatch?.[1] || '', eventType, message: line.trim() });
     }

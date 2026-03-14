@@ -1,8 +1,8 @@
 import { getHistoricalEvents, getTopFlappingPeers } from '@/app/actions/reports';
-import { fetchLibreNmsBgpEvents } from '@/app/actions/librenms-events';
 import { prisma } from '@/lib/prisma';
 import { redis } from '@/lib/redis';
 import Link from 'next/link';
+import LiveEventsPanel from '@/app/components/LiveEventsPanel';
 
 export default async function ReportsPage(props: { searchParams: Promise<{ [key: string]: string | undefined }> }) {
     const searchParams = await props.searchParams;
@@ -18,7 +18,10 @@ export default async function ReportsPage(props: { searchParams: Promise<{ [key:
     const events = await getHistoricalEvents({ startDate, endDate, asn: effectiveAsn, search });
     const topFlap = await getTopFlappingPeers(startDate, endDate);
     const allAsns = await prisma.asnDictionary.findMany({ orderBy: { organizationName: 'asc' } });
-    const liveEvents = await fetchLibreNmsBgpEvents({ limit: 20, search, asn: effectiveAsn });
+    const configuredDevices = await prisma.routerDevice.findMany({
+        select: { id: true, hostname: true, ipAddress: true, vendor: true },
+        orderBy: { hostname: 'asc' }
+    });
 
     // Summary counts
     const last24h = new Date(Date.now() - 86400000);
@@ -125,64 +128,23 @@ export default async function ReportsPage(props: { searchParams: Promise<{ [key:
                     </div>
                 </div>
 
-                {/* LibreNMS Live BGP Events */}
+                {/* SSH Live Log — per device */}
                 <div className="card overflow-hidden">
                     <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
                         <div className="flex items-center gap-2">
-                            <span className="material-symbols-outlined text-lg" style={{ color: '#13a4ec' }}>wifi</span>
-                            <h3 className="font-bold text-white">Live BGP Events — LibreNMS</h3>
-                            <span className="text-[10px] px-2 py-0.5 rounded-full font-bold" style={{ backgroundColor: 'rgba(16,185,129,0.12)', color: '#10b981' }}>LIVE</span>
+                            <span className="material-symbols-outlined text-lg" style={{ color: '#13a4ec' }}>terminal</span>
+                            <h3 className="font-bold text-white">Device SSH Logs</h3>
                         </div>
-                        <span className="text-xs" style={{ color: '#475569' }}>Last 20 BGP-related entries from LibreNMS syslog</span>
+                        <span className="text-xs" style={{ color: '#475569' }}>Real-time BGP log from device SSH</span>
                     </div>
-                    {liveEvents.length === 0 ? (
+                    {configuredDevices.length === 0 ? (
                         <div className="p-8 text-center">
-                            <span className="material-symbols-outlined text-3xl block mb-2" style={{ color: '#334155' }}>cloud_off</span>
-                            <p className="text-sm text-white mb-1">No live events</p>
-                            <p className="text-xs" style={{ color: '#475569' }}>Ensure LibreNMS API is configured in Settings and the server is reachable.</p>
+                            <span className="material-symbols-outlined text-3xl block mb-2" style={{ color: '#334155' }}>router</span>
+                            <p className="text-sm text-white mb-1">No devices configured</p>
+                            <p className="text-xs" style={{ color: '#475569' }}>Add a router in <Link href="/settings" className="text-[#13a4ec] hover:underline">Settings</Link> to see SSH logs.</p>
                         </div>
                     ) : (
-                        <div className="overflow-x-auto">
-                            <table className="w-full data-table">
-                                <thead>
-                                    <tr>
-                                        <th style={{ width: '100px' }}>Severity</th>
-                                        <th>Timestamp</th>
-                                        <th>Device</th>
-                                        <th>Event Message</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {liveEvents.map((ev, i) => {
-                                        const isDown = /down|notestabl|idle|active/i.test(ev.message) || /down/i.test(ev.type);
-                                        const isUp = /up|established/i.test(ev.message);
-                                        const color = isDown ? '#f43f5e' : isUp ? '#10b981' : '#f59e0b';
-                                        const label = isDown ? 'Down' : isUp ? 'Up' : 'Info';
-                                        return (
-                                            <tr key={i}>
-                                                <td>
-                                                    <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase px-2 py-0.5 rounded"
-                                                        style={{ backgroundColor: `${color}18`, color }}>
-                                                        <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
-                                                        {label}
-                                                    </span>
-                                                </td>
-                                                <td>
-                                                    <div className="text-sm text-white">{new Date(ev.datetime).toLocaleString()}</div>
-                                                    <div className="text-[10px]" style={{ color: '#64748b' }}>{fmtRelative(new Date(ev.datetime))}</div>
-                                                </td>
-                                                <td>
-                                                    <span className="text-sm font-bold" style={{ color: '#94a3b8' }}>{ev.hostname}</span>
-                                                </td>
-                                                <td>
-                                                    <span className="text-sm" style={{ color: '#cbd5e1' }}>{ev.message}</span>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
+                        <LiveEventsPanel devices={configuredDevices} />
                     )}
                 </div>
 
@@ -276,6 +238,9 @@ export default async function ReportsPage(props: { searchParams: Promise<{ [key:
                                                 <Link href={`/peers/${encodeURIComponent(ev.peerIp)}`} className="text-sm font-bold hover:opacity-75" style={{ color: '#13a4ec' }}>
                                                     {ev.peerIp}
                                                 </Link>
+                                                {(ev as any).peerDescription && (
+                                                    <div className="text-xs font-medium" style={{ color: '#94a3b8' }}>{(ev as any).peerDescription}</div>
+                                                )}
                                                 <div className="text-xs" style={{ color: '#64748b' }}>AS{ev.asn.toString()} · {ev.organizationName}</div>
                                             </td>
                                             <td>

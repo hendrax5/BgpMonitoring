@@ -4,7 +4,6 @@ import { redis } from '@/lib/redis';
 import Link from 'next/link';
 import DashboardFilters from '@/app/components/DashboardFilters';
 import SortableHeader from '@/app/components/SortableHeader';
-import LiveEventsPanel from '@/app/components/LiveEventsPanel';
 
 export default async function Home({ searchParams }: { searchParams: Promise<{ device?: string; sort?: string; status?: string; search?: string }> }) {
   const { device, sort, status, search } = await searchParams;
@@ -28,8 +27,13 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
   const upSessions = filteredSessionsByDevice.filter(s => s.bgpState === 'Established').length;
   const downSessions = totalSessions - upSessions;
 
-  // Latest BGP events — from device-events API (via LiveEventsPanel client component)
-  // Also keep DB events as fallback for state-change history
+  // Latest 10 BGP events from DB (state changes recorded by worker)
+  const latestDbEvents = await (prisma as any).historicalEvent.findMany({
+    orderBy: { eventTimestamp: 'desc' },
+    take: 10
+  });
+
+  // Configured devices for LiveEventsPanel (SSH log viewer)
   const configuredDevices = await prisma.routerDevice.findMany({
     select: { id: true, hostname: true, ipAddress: true, vendor: true },
     orderBy: { hostname: 'asc' }
@@ -223,23 +227,49 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
           </div>
         </div>
 
-        {/* Latest BGP Events — Live from Device SSH Logs */}
+        {/* Latest BGP Events — from DB (state changes) */}
         <div className="card overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
             <div>
               <h3 className="font-bold text-white">Latest BGP Events</h3>
-              <p className="text-xs mt-0.5" style={{ color: '#64748b' }}>Live log from device SSH — click Refresh to fetch latest</p>
+              <p className="text-xs mt-0.5" style={{ color: '#64748b' }}>State changes recorded by worker — last 10</p>
             </div>
-            <Link href="/reports" className="text-xs font-bold hover:underline" style={{ color: '#13a4ec' }}>History →</Link>
+            <Link href="/reports" className="text-xs font-bold hover:underline" style={{ color: '#13a4ec' }}>View All →</Link>
           </div>
-          {configuredDevices.length === 0 ? (
+          {latestDbEvents.length === 0 ? (
             <div className="p-8 text-center">
-              <span className="material-symbols-outlined text-3xl block mb-2" style={{ color: '#334155' }}>router</span>
-              <p className="text-sm text-white mb-1">No devices configured</p>
-              <p className="text-xs" style={{ color: '#475569' }}>Add a router in <Link href="/settings" className="text-[#13a4ec] hover:underline">Settings</Link> to see BGP events.</p>
+              <span className="material-symbols-outlined text-3xl block mb-2" style={{ color: '#334155' }}>history</span>
+              <p className="text-sm text-white mb-1">No BGP events yet</p>
+              <p className="text-xs" style={{ color: '#475569' }}>Events are recorded when BGP session state changes (UP↔DOWN).</p>
             </div>
           ) : (
-            <LiveEventsPanel devices={configuredDevices} />
+            <div className="divide-y divide-white/[0.05]">
+              {latestDbEvents.map((ev: any) => (
+                <div key={ev.eventId} className="px-4 py-3 flex items-start gap-3 hover:bg-white/[0.02]">
+                  <span className="w-2 h-2 rounded-full flex-shrink-0 mt-1.5"
+                    style={{ backgroundColor: ev.eventType === 'UP' ? '#10b981' : '#f43f5e' }} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                      <code className="text-xs font-mono font-bold text-white">{ev.peerIp}</code>
+                      {ev.peerDescription && (
+                        <span className="text-xs" style={{ color: '#94a3b8' }}>{ev.peerDescription}</span>
+                      )}
+                      <span className="text-[9px] px-1.5 py-0.5 rounded font-bold uppercase"
+                        style={{
+                          backgroundColor: ev.eventType === 'UP' ? 'rgba(16,185,129,0.15)' : 'rgba(244,63,94,0.15)',
+                          color: ev.eventType === 'UP' ? '#10b981' : '#f43f5e'
+                        }}>{ev.eventType}</span>
+                    </div>
+                    <p className="text-[11px]" style={{ color: '#64748b' }}>
+                      {ev.deviceName} — AS{ev.asn?.toString()} {ev.organizationName}
+                    </p>
+                    <p className="text-[10px] mt-0.5" style={{ color: '#475569' }}>
+                      {new Date(ev.eventTimestamp).toLocaleString('id-ID')}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </div>
 

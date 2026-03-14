@@ -28,14 +28,31 @@ model HistoricalEvent {
   deviceName       String   @map("device_name")
   deviceIp         String   @map("device_ip")
   peerIp           String   @map("peer_ip")
+  peerDescription  String?  @map("peer_description") // Description/name from router config
   asn              BigInt
   organizationName String   @map("organization_name")
   eventType        String   @map("event_type") // 'UP' or 'DOWN'
-  downEventId      BigInt?  @map("down_event_id") // Relates UP to DOWN
-  downtimeDuration Int?     @map("downtime_duration") // In seconds
+  downEventId      BigInt?  @map("down_event_id")
+  downtimeDuration Int?     @map("downtime_duration")
 
   @@index([peerIp])
+  @@index([eventTimestamp])
   @@map("historical_event")
+}
+
+// BGP log entries fetched from device SSH — stored for history
+model BgpLog {
+  id          Int      @id @default(autoincrement())
+  deviceId    Int      @map("device_id")
+  deviceName  String   @map("device_name")
+  peerIp      String   @map("peer_ip")
+  eventType   String   @map("event_type") // 'UP' | 'DOWN' | 'INFO'
+  message     String
+  fetchedAt   DateTime @default(now()) @map("fetched_at")
+
+  @@index([deviceId])
+  @@index([fetchedAt])
+  @@map("bgp_log")
 }
 
 model RouterDevice {
