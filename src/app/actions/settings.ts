@@ -143,3 +143,16 @@ export async function deleteLibrenmsServer(id: number) {
         redirect(`/settings?error=${encodeURIComponent(error.message || 'Failed to delete server.')}`);
     }
 }
+
+export async function triggerManualSync() {
+    try {
+        const { forceSyncLibreNMS } = await import('@/worker/sync');
+        await forceSyncLibreNMS('Manual UI');
+        revalidatePath('/');
+        revalidatePath('/settings');
+        revalidatePath('/reports');
+        return { success: true, message: 'Data synchronization completed successfully.' };
+    } catch (error: any) {
+        return { success: false, message: error.message || 'Failed to synchronize data.' };
+    }
+}

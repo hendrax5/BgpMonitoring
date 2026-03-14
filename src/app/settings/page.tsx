@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { addLibrenmsServer, updateLibrenmsServer, deleteLibrenmsServer } from '@/app/actions/settings';
 import { addUser, updateUser, deleteUser } from '@/app/actions/users';
+import SyncButton from '@/app/settings/components/SyncButton';
 
 export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ error?: string; edit?: string; editUser?: string }> }) {
     const { error, edit, editUser } = await searchParams;
@@ -21,10 +22,14 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                     <h2 className="text-white font-bold text-base">Configuration Settings</h2>
                     <p className="text-xs" style={{ color: '#64748b' }}>Manage LibreNMS API targets and SSH credentials.</p>
                 </div>
-                <a href="/" className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg"
-                    style={{ color: '#64748b', border: '1px solid rgba(255,255,255,0.07)' }}>
-                    ← Dashboard
-                </a>
+                <div className="flex items-center gap-4">
+                    <SyncButton />
+                    
+                    <a href="/" className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg"
+                        style={{ color: '#64748b', border: '1px solid rgba(255,255,255,0.07)' }}>
+                        ← Dashboard
+                    </a>
+                </div>
             </header>
 
             <main className="p-6 max-w-5xl space-y-6 animate-fade-in">
