@@ -69,16 +69,48 @@ export async function updateLibrenmsServer(formData: FormData) {
     }
 
     try {
+        const existingServer = await prisma.librenmsServer.findUnique({
+            where: { id }
+        });
+
+        if (!existingServer) {
+            redirect(`/settings?error=${encodeURIComponent('Server not found.')}`);
+        }
+
         const updateData: any = { name, apiUrl };
         // Only update token if a new one was provided
         if (apiToken && apiToken.trim()) {
             updateData.apiToken = apiToken;
         }
-        await prisma.librenmsServer.update({
-            where: { id },
-            data: updateData,
-        });
+
+        if (existingServer.name !== name) {
+            // If the name changed, we need to cascade the name update to the state tables
+            await prisma.$transaction([
+                prisma.bgpCurrentState.updateMany({
+                    where: { serverName: existingServer.name },
+                    data: { serverName: name }
+                }),
+                prisma.historicalEvent.updateMany({
+                    where: { serverName: existingServer.name },
+                    data: { serverName: name }
+                }),
+                prisma.librenmsServer.update({
+                    where: { id },
+                    data: updateData,
+                })
+            ]);
+        } else {
+            // No name change, simple update
+            await prisma.librenmsServer.update({
+                where: { id },
+                data: updateData,
+            });
+        }
     } catch (error: any) {
+        // Only redirect if the error is not literally a navigation redirect from Next.js
+        if (error.message && error.message.includes('NEXT_REDIRECT')) {
+            throw error;
+        }
         redirect(`/settings?error=${encodeURIComponent(error.message || 'Failed to update server.')}`);
     }
 
@@ -87,9 +119,25 @@ export async function updateLibrenmsServer(formData: FormData) {
 
 export async function deleteLibrenmsServer(id: number) {
     try {
-        await prisma.librenmsServer.delete({
+        const existingServer = await prisma.librenmsServer.findUnique({
             where: { id }
         });
+
+        if (existingServer) {
+            // Cascade delete the associated data since it's mapped by serverName string
+            await prisma.$transaction([
+                prisma.bgpCurrentState.deleteMany({
+                    where: { serverName: existingServer.name }
+                }),
+                prisma.historicalEvent.deleteMany({
+                    where: { serverName: existingServer.name }
+                }),
+                prisma.librenmsServer.delete({
+                    where: { id }
+                })
+            ]);
+        }
+        
         revalidatePath('/settings');
     } catch (error: any) {
         redirect(`/settings?error=${encodeURIComponent(error.message || 'Failed to delete server.')}`);
