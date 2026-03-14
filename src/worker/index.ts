@@ -89,8 +89,8 @@ async function fetchLibreNmsDevices(apiUrl: string, apiToken: string) {
         const data = await res.json();
         return data.devices || [];
     } catch (error) {
-        console.warn(`⚠️ Could not fetch Devices.`, error);
-        return [];
+        console.warn(`\u26a0\ufe0f Could not fetch Devices.`, error);
+        throw error;
     }
 }
 
@@ -120,10 +120,17 @@ async function fetchLibreNmsData(apiUrl: string, apiToken: string, serverName: s
 
         // 3. Map to our internal schema
         const sessions = data.bgp_sessions || [];
-        return sessions.map((b: any) => {
-            const devInfo = deviceMap.get(b.device_id?.toString()) || { name: 'Unknown Device', ip: '0.0.0.0' };
+        
+        return sessions.reduce((acc: any[], b: any) => {
+            const devInfo = deviceMap.get(b.device_id?.toString());
+            
+            // If device exists in `/bgp` but NO LONGER exists in `/devices`,
+            // skip it so it is treated as stale and gets removed from the local DB.
+            if (!devInfo) {
+                return acc;
+            }
 
-            return {
+            acc.push({
                 serverName: serverName,
                 deviceId: parseInt(b.device_id, 10),
                 deviceName: devInfo.name,
@@ -134,12 +141,13 @@ async function fetchLibreNmsData(apiUrl: string, apiToken: string, serverName: s
                 bgpState: b.bgpPeerState === 'established' ? 'Established' : b.bgpPeerState,
                 acceptedPrefixes: parseInt(b.bgpPeerInUpdates || '0', 10),
                 advertisedPrefixes: parseInt(b.bgpPeerOutUpdates || '0', 10)
-            };
-        });
+            });
+            return acc;
+        }, []);
 
     } catch (error: any) {
-        console.warn(`⚠️ Could not complete LibreNMS API requests (${serverName}). Error:`, error.message);
-        return [];
+        console.warn(`\u26a0\ufe0f Could not complete LibreNMS API requests (${serverName}). Error:`, error.message);
+        return null;
     }
 }
 
@@ -167,8 +175,13 @@ async function runWorker() {
     }
 
     for (const srv of servers) {
-        console.log(`\n🔄 Syncing Server via API: ${srv.name}`);
+        console.log(`\n\ud83d\udd04 Syncing Server via API: ${srv.name}`);
         const activeSessions = await fetchLibreNmsData(srv.apiUrl, srv.apiToken, srv.name);
+
+        if (activeSessions === null) {
+            console.log(`\u23ed\ufe0f Skipping sync & cleanup for ${srv.name} due to API error.`);
+            continue;
+        }
 
         for (const session of activeSessions) {
             const isUp = session.bgpState === 'Established';
@@ -275,7 +288,35 @@ async function runWorker() {
             // Sleep briefly to yield SQLite lock to the main web process
             await sleep(20);
         }
-        console.log(`✅ Completed ${srv.name}: Processed ${activeSessions.length} sessions.`);
+
+        // --- Cleanup: Remove stale sessions that no longer exist in LibreNMS ---
+        // Build a set of active session keys from LibreNMS response
+        const activeKeys = new Set(
+            activeSessions.map((s: any) => `${s.serverName}|${s.deviceId}|${s.peerIp}`)
+        );
+
+        // Find all stored sessions for this server
+        const storedSessions = await prisma.bgpCurrentState.findMany({
+            where: { serverName: srv.name }
+        });
+
+        // Identify sessions in DB that are no longer reported by LibreNMS
+        const staleSessions = storedSessions.filter(
+            (s) => !activeKeys.has(`${s.serverName}|${s.deviceId}|${s.peerIp}`)
+        );
+
+        if (staleSessions.length > 0) {
+            const staleIds = staleSessions.map((s) => s.id);
+            await prisma.bgpCurrentState.deleteMany({
+                where: { id: { in: staleIds } }
+            });
+            console.log(`\ud83d\uddd1\ufe0f  Removed ${staleSessions.length} stale session(s) from DB for ${srv.name}:`);
+            for (const s of staleSessions) {
+                console.log(`   - ${s.deviceName} | peer: ${s.peerIp} | ASN: ${s.remoteAsn}`);
+            }
+        }
+
+        console.log(`\u2705 Completed ${srv.name}: Processed ${activeSessions.length} sessions.`);
     }
 
     console.log(`[${new Date().toISOString()}] Synchronization master cycle complete.`);
