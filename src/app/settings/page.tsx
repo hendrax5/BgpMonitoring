@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { requireSession } from '@/lib/auth';
+import { can } from '@/lib/rbac';
 import { addRouterDevice, updateRouterDevice, deleteRouterDevice, getTelegramSettings, saveTelegramSettings } from '@/app/actions/settings';
 import { addUser, updateUser, deleteUser } from '@/app/actions/users';
 import SyncButton from '@/app/settings/components/SyncButton';
@@ -80,6 +81,8 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
 
+                    {/* Device Add/Edit Form: only for device.manage roles */}
+                    {can(session.role, 'device.manage') ? (
                     <div className="md:col-span-1">
                         <div className="card p-5 sticky top-20">
                             <h3 className="font-bold text-white mb-1">
@@ -200,6 +203,18 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                             </form>
                         </div>
                     </div>
+                    ) : (
+                    <div className="md:col-span-1">
+                        <div className="card p-5" style={{ border: '1px solid rgba(245,158,11,0.2)', background: 'rgba(245,158,11,0.04)' }}>
+                            <span className="material-symbols-outlined text-2xl block mb-2" style={{ color: '#f59e0b' }}>lock</span>
+                            <h3 className="font-bold text-white mb-1">Device Management</h3>
+                            <p className="text-xs" style={{ color: '#64748b' }}>Hanya OrgAdmin dan SuperAdmin yang bisa menambah, mengedit, atau menghapus perangkat.</p>
+                            <p className="text-xs mt-2 px-2 py-1 rounded" style={{ backgroundColor: 'rgba(255,255,255,0.04)', color: '#94a3b8' }}>
+                                Role Anda: <strong style={{ color: '#f59e0b' }}>{session.role}</strong>
+                            </p>
+                        </div>
+                    </div>
+                    )}
 
                     {/* Configured Devices List */}
                     <div className="md:col-span-2 card overflow-hidden self-start">
@@ -271,6 +286,8 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                                                 </td>
                                                 <td style={{ textAlign: 'right' }}>
                                                     <div className="flex items-center justify-end gap-1">
+                                                        {can(session.role, 'device.manage') && (
+                                                        <>
                                                         <a href={`/settings?edit=${device.id}`}
                                                             className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg transition-colors"
                                                             style={{ color: '#13a4ec', backgroundColor: 'rgba(19,164,236,0.08)' }}
@@ -288,6 +305,11 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                                                                 <span className="material-symbols-outlined text-sm">delete</span>
                                                             </button>
                                                         </form>
+                                                        </>
+                                                        )}
+                                                        {!can(session.role, 'device.manage') && (
+                                                            <span className="text-[10px] px-2 py-1 rounded" style={{ color: '#475569', backgroundColor: 'rgba(255,255,255,0.04)' }}>Read only</span>
+                                                        )}
                                                     </div>
                                                 </td>
                                             </tr>
@@ -301,17 +323,22 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 
                 <hr style={{ borderColor: 'rgba(255,255,255,0.07)' }} />
 
-                {/* User Management */}
+                {/* User Management: only for user.manageTenant roles */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="md:col-span-1">
                         <div className="card p-5">
                             <h3 className="font-bold text-white mb-1">
-                                {editUserObj ? 'Edit User' : 'Add App User'}
+                                {can(session.role, 'user.manageTenant')
+                                    ? (editUserObj ? 'Edit User' : 'Add App User')
+                                    : 'Users'}
                             </h3>
                             <p className="text-xs mb-5" style={{ color: '#64748b' }}>
-                                {editUserObj ? `Editing: ${editUserObj.username}` : 'Create an account to access this dashboard.'}
+                                {can(session.role, 'user.manageTenant')
+                                    ? (editUserObj ? `Editing: ${editUserObj.username}` : 'Create an account to access this dashboard.')
+                                    : 'Daftar pengguna terdaftar di tenant ini.'}
                             </p>
 
+                            {can(session.role, 'user.manageTenant') && (
                             <form action={async (formData: FormData) => {
                                 'use server';
                                 const id = formData.get('id');
@@ -335,6 +362,19 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                                         className="form-input" required={!editUserObj} />
                                 </div>
 
+                                {/* Role Dropdown */}
+                                {!editUserObj && (
+                                <div>
+                                    <label className="block text-xs font-medium mb-1" style={{ color: '#64748b' }}>Role</label>
+                                    <select name="role" className="form-input" defaultValue="viewer">
+                                        <option value="orgadmin">OrgAdmin — manage devices &amp; users</option>
+                                        <option value="networkengineer">Network Engineer — view &amp; config alerts</option>
+                                        <option value="viewer">Viewer — read only</option>
+                                    </select>
+                                    <p className="text-[11px] mt-1" style={{ color: '#475569' }}>Superadmin tidak bisa diassign via form ini.</p>
+                                </div>
+                                )}
+
                                 <div className="pt-2 flex gap-2">
                                     <button type="submit" className="flex-1 py-2 rounded-lg text-sm font-bold transition-colors"
                                         style={{ backgroundColor: '#13a4ec', color: 'white' }}>
@@ -348,6 +388,13 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                                     )}
                                 </div>
                             </form>
+                            )}
+                            {!can(session.role, 'user.manageTenant') && (
+                                <div className="p-3 rounded-lg" style={{ backgroundColor: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.15)' }}>
+                                    <span className="material-symbols-outlined text-sm mr-1" style={{ color: '#f59e0b', verticalAlign: 'middle' }}>lock</span>
+                                    <span className="text-xs" style={{ color: '#94a3b8' }}>Hanya OrgAdmin yang bisa mengelola user.</span>
+                                </div>
+                            )}
                         </div>
                     </div>
 
@@ -357,6 +404,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                                 <thead>
                                     <tr>
                                         <th>Username</th>
+                                        <th>Role</th>
                                         <th>Registered</th>
                                         <th style={{ textAlign: 'right' }}>Actions</th>
                                     </tr>
@@ -370,6 +418,21 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                                                     {u.username}
                                                 </div>
                                             </td>
+                                            <td>
+                                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{
+                                                    backgroundColor: u.role === 'superadmin' ? 'rgba(245,158,11,0.15)'
+                                                        : u.role === 'orgadmin' ? 'rgba(19,164,236,0.15)'
+                                                        : u.role === 'networkengineer' ? 'rgba(16,185,129,0.15)'
+                                                        : 'rgba(255,255,255,0.06)',
+                                                    color: u.role === 'superadmin' ? '#f59e0b'
+                                                        : u.role === 'orgadmin' ? '#13a4ec'
+                                                        : u.role === 'networkengineer' ? '#10b981'
+                                                        : '#64748b',
+                                                }}>
+                                                    {u.role === 'networkengineer' ? 'Net. Engineer' : u.role}
+                                                </span>
+                                            </td>
+
                                             <td>
                                                 <div className="text-xs" style={{ color: '#64748b' }}>{u.createdAt.toLocaleDateString()}</div>
                                             </td>

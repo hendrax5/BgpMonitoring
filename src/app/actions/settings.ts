@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { redis } from '@/lib/redis';
 import { requireSession } from '@/lib/auth';
 import { scopedDb } from '@/lib/scoped-db';
+import { can } from '@/lib/rbac';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { exec } from 'child_process';
@@ -13,6 +14,9 @@ const execAsync = promisify(exec);
 
 export async function addRouterDevice(formData: FormData) {
     const session = await requireSession();
+    if (!can(session.role, 'device.manage')) {
+        redirect('/settings?error=Permission+denied%3A+only+OrgAdmin+and+above+can+add+devices.');
+    }
     const db = scopedDb(session.tenantId);
 
     const hostname = formData.get('hostname') as string;
@@ -53,6 +57,9 @@ export async function addRouterDevice(formData: FormData) {
 
 export async function updateRouterDevice(formData: FormData) {
     const session = await requireSession();
+    if (!can(session.role, 'device.manage')) {
+        redirect('/settings?error=Permission+denied%3A+only+OrgAdmin+and+above+can+edit+devices.');
+    }
 
     const id = parseInt(formData.get('id') as string);
     const hostname = formData.get('hostname') as string;
@@ -101,6 +108,8 @@ export async function updateRouterDevice(formData: FormData) {
 
 export async function deleteRouterDevice(id: number) {
     const session = await requireSession();
+    if (!can(session.role, 'device.manage')) return;
+
     try {
         const existing = await (prisma as any).routerDevice.findFirst({ where: { id, tenantId: session.tenantId } });
         if (existing) {
@@ -140,6 +149,9 @@ export async function getTelegramSettings(): Promise<{ botToken: string; chatId:
 
 export async function saveTelegramSettings(formData: FormData) {
     const session = await requireSession();
+    if (!can(session.role, 'monitoring.configAlerts')) {
+        redirect('/settings?error=Permission+denied%3A+only+NetworkEngineer+and+above+can+configure+alerts.');
+    }
     const db = scopedDb(session.tenantId);
     const botToken = (formData.get('telegram_bot_token') as string || '').trim();
     const chatId = (formData.get('telegram_chat_id') as string || '').trim();

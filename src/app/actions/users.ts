@@ -2,14 +2,18 @@
 
 import { requireSession } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { can } from '@/lib/rbac';
 import bcrypt from 'bcryptjs';
 import { revalidatePath } from 'next/cache';
 
 export async function addUser(formData: FormData) {
     const session = await requireSession();
+    if (!can(session.role, 'user.manageTenant')) return { error: 'Permission denied.' };
     const username = formData.get('username') as string;
     const password = formData.get('password') as string;
-    const role = (formData.get('role') as string) || 'viewer';
+    const requestedRole = (formData.get('role') as string) || 'viewer';
+    // Never allow assigning superadmin via UI
+    const role = requestedRole === 'superadmin' ? 'viewer' : requestedRole;
 
     if (!username || !password) return { error: 'Username and password required' };
 
@@ -28,6 +32,8 @@ export async function addUser(formData: FormData) {
 
 export async function updateUser(formData: FormData) {
     const session = await requireSession();
+    if (!can(session.role, 'user.manageTenant')) return { error: 'Permission denied.' };
+
     const id = parseInt(formData.get('id') as string);
     const username = formData.get('username') as string;
     const password = formData.get('password') as string;
@@ -53,6 +59,8 @@ export async function updateUser(formData: FormData) {
 
 export async function deleteUser(id: number) {
     const session = await requireSession();
+    if (!can(session.role, 'user.manageTenant')) return { error: 'Permission denied.' };
+
     try {
         const count = await (prisma as any).appUser.count({ where: { tenantId: session.tenantId } });
         if (count <= 1) return { error: 'Cannot delete the last remaining user' };

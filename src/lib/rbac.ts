@@ -1,38 +1,74 @@
 /**
- * RBAC helper — check if a role can perform an action
+ * RBAC — permission matrix sesuai tabel
  *
- * Role hierarchy: superadmin > orgadmin > viewer
+ * Roles: superadmin > orgadmin > networkengineer > viewer
  */
 
-type Role = 'superadmin' | 'orgadmin' | 'viewer';
+export type Role = 'superadmin' | 'orgadmin' | 'networkengineer' | 'viewer';
 
-type Action =
-    | 'manage:tenants'      // superadmin only
-    | 'manage:users'        // superadmin + orgadmin
-    | 'manage:devices'      // superadmin + orgadmin
-    | 'manage:settings'     // superadmin + orgadmin
-    | 'view:dashboard'      // all roles
-    | 'view:reports'        // all roles
-    | 'view:peers';         // all roles
+export type Action =
+    // Tenant
+    | 'tenant.create'           // create/delete tenant
+    | 'tenant.editSubscription' // edit plan/limit
+    // User
+    | 'user.manageGlobal'       // manage users across all tenants
+    | 'user.manageTenant'       // manage users in same tenant
+    // Device
+    | 'device.manage'           // add/edit/delete device
+    | 'device.view'             // view device list & status
+    // Monitoring
+    | 'monitoring.view'         // view dashboard & metrics
+    | 'monitoring.configAlerts' // configure alert thresholds
+    // Config
+    | 'config.pull'             // pull config (manual backup)
+    | 'config.viewHistory'      // view config history/diff
+    | 'config.rollback'         // rollback configuration
+    // System
+    | 'system.viewGlobalAudit'  // view global audit logs
+    | 'system.viewTenantAudit'; // view tenant audit logs
 
 const permissions: Record<Action, Role[]> = {
-    'manage:tenants':  ['superadmin'],
-    'manage:users':    ['superadmin', 'orgadmin'],
-    'manage:devices':  ['superadmin', 'orgadmin'],
-    'manage:settings': ['superadmin', 'orgadmin'],
-    'view:dashboard':  ['superadmin', 'orgadmin', 'viewer'],
-    'view:reports':    ['superadmin', 'orgadmin', 'viewer'],
-    'view:peers':      ['superadmin', 'orgadmin', 'viewer'],
+    // Tenant
+    'tenant.create':           ['superadmin'],
+    'tenant.editSubscription': ['superadmin'],
+    // User
+    'user.manageGlobal':       ['superadmin'],
+    'user.manageTenant':       ['superadmin', 'orgadmin'],
+    // Device
+    'device.manage':           ['superadmin', 'orgadmin'],
+    'device.view':             ['superadmin', 'orgadmin', 'networkengineer', 'viewer'],
+    // Monitoring
+    'monitoring.view':         ['superadmin', 'orgadmin', 'networkengineer', 'viewer'],
+    'monitoring.configAlerts': ['superadmin', 'orgadmin', 'networkengineer'],
+    // Config
+    'config.pull':             ['superadmin', 'orgadmin', 'networkengineer'],
+    'config.viewHistory':      ['superadmin', 'orgadmin', 'networkengineer'],
+    'config.rollback':         ['superadmin', 'orgadmin'],
+    // System
+    'system.viewGlobalAudit':  ['superadmin'],
+    'system.viewTenantAudit':  ['superadmin', 'orgadmin'],
 };
 
-export function can(role: Role, action: Action): boolean {
-    return permissions[action]?.includes(role) ?? false;
+export function can(role: Role | string, action: Action): boolean {
+    return (permissions[action] as string[])?.includes(role) ?? false;
 }
 
-export function isSuperAdmin(role: Role): boolean {
+export function isSuperAdmin(role: Role | string): boolean {
     return role === 'superadmin';
 }
 
-export function isOrgAdmin(role: Role): boolean {
+export function isOrgAdmin(role: Role | string): boolean {
     return role === 'superadmin' || role === 'orgadmin';
+}
+
+export function canManageDevices(role: Role | string): boolean {
+    return can(role as Role, 'device.manage');
+}
+
+export function canManageUsers(role: Role | string): boolean {
+    return can(role as Role, 'user.manageTenant');
+}
+
+export function canConfigAlerts(role: Role | string): boolean {
+    return can(role as Role, 'monitoring.configAlerts');
 }
