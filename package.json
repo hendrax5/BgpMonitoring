@@ -14,16 +14,20 @@
     "@types/bcryptjs": "^2.4.6",
     "@types/ssh2": "^1.15.5",
     "bcryptjs": "^3.0.3",
+    "cpu-features": "^0.0.10",
     "date-fns": "^4.1.0",
     "ioredis": "^5.10.0",
     "jspdf": "^4.2.0",
     "jspdf-autotable": "^5.0.7",
+    "net-snmp": "^3.26.1",
     "next": "16.1.6",
     "papaparse": "^5.5.3",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-draggable": "^4.5.0",
-    "ssh2": "^1.17.0"
+    "socksv5": "^0.0.6",
+    "ssh2": "^1.17.0",
+    "ssh2-promise": "^1.0.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

@@ -5,90 +5,91 @@ import { redis } from '@/lib/redis';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
-export async function addLibrenmsServer(formData: FormData) {
-    const name = formData.get('name') as string;
-    const apiUrl = formData.get('apiUrl') as string;
-    const apiToken = formData.get('apiToken') as string;
-
-    if (!name || !apiUrl || !apiToken) {
-        redirect(`/settings?error=${encodeURIComponent('Name, API URL, and API Token are required.')}`);
+export async function addRouterDevice(formData: FormData) {
+    const hostname = formData.get('hostname') as string;
+    const ipAddress = formData.get('ipAddress') as string;
+    const vendor = formData.get('vendor') as string;
+    const pollMethod = formData.get('pollMethod') as string;
+    const snmpVersion = formData.get('snmpVersion') as string;
+    const snmpCommunity = formData.get('snmpCommunity') as string;
+    const snmpPort = parseInt(formData.get('snmpPort') as string || '161', 10);
+    
+    let sshCredentialId: number | null = null;
+    const sshCredStr = formData.get('sshCredentialId') as string;
+    if (sshCredStr && sshCredStr !== '') {
+        sshCredentialId = parseInt(sshCredStr, 10);
     }
 
-    // Pre-flight API Validation
+    if (!hostname || !ipAddress || !vendor || !pollMethod) {
+        redirect(`/settings?error=${encodeURIComponent('Hostname, IP Address, Vendor, and Polling Method are required.')}`);
+    }
+
     try {
-        const url = apiUrl.endsWith('/') ? `${apiUrl}devices` : `${apiUrl}/devices`;
-        const res = await fetch(url, {
-            headers: { 'X-Auth-Token': apiToken }
+        await prisma.routerDevice.create({
+            data: {
+                hostname,
+                ipAddress,
+                vendor,
+                pollMethod,
+                snmpVersion,
+                snmpCommunity,
+                snmpPort,
+                sshCredentialId
+            }
         });
-
-        if (!res.ok) {
-            redirect(`/settings?error=${encodeURIComponent(`Invalid API Request: Server returned ${res.status} ${res.statusText}. Please check URL and Token.`)}`);
-        }
-
-        const data = await res.text();
-
-        try {
-            JSON.parse(data);
-        } catch (e) {
-            redirect(`/settings?error=${encodeURIComponent('Invalid API URL: Server returned HTML/Text instead of JSON. Ensure the URL points strictly to the /api/v0/ path.')}`);
-        }
-
     } catch (error: any) {
         // Only redirect if the error is not literally a navigation redirect error from Next.js!
         if (error.message && error.message.includes('NEXT_REDIRECT')) {
             throw error;
         }
-        redirect(`/settings?error=${encodeURIComponent(`Connection failed: ${error.message}`)}`);
-    }
-
-    try {
-        await prisma.librenmsServer.create({
-            data: {
-                name,
-                apiUrl,
-                apiToken
-            }
-        });
-    } catch (error: any) {
         if (error.code === 'P2002') {
-            redirect(`/settings?error=${encodeURIComponent('A server with this name already exists.')}`);
+            redirect(`/settings?error=${encodeURIComponent('A router with this hostname or IP already exists.')}`);
         }
-        redirect(`/settings?error=${encodeURIComponent(error.message || 'Failed to add server.')}`);
+        redirect(`/settings?error=${encodeURIComponent(error.message || 'Failed to add router.')}`);
     }
 
     redirect('/settings');
 }
 
-export async function updateLibrenmsServer(formData: FormData) {
+export async function updateRouterDevice(formData: FormData) {
     const id = parseInt(formData.get('id') as string);
-    const name = formData.get('name') as string;
-    const apiUrl = formData.get('apiUrl') as string;
-    const apiToken = formData.get('apiToken') as string;
+    const hostname = formData.get('hostname') as string;
+    const ipAddress = formData.get('ipAddress') as string;
+    const vendor = formData.get('vendor') as string;
+    const pollMethod = formData.get('pollMethod') as string;
+    const snmpVersion = formData.get('snmpVersion') as string;
+    const snmpCommunity = formData.get('snmpCommunity') as string;
+    const snmpPort = parseInt(formData.get('snmpPort') as string || '161', 10);
 
-    if (!id || !name || !apiUrl) {
-        redirect(`/settings?error=${encodeURIComponent('Name and API URL are required.')}`);
+    let sshCredentialId: number | null = null;
+    const sshCredStr = formData.get('sshCredentialId') as string;
+    if (sshCredStr && sshCredStr !== '') {
+        sshCredentialId = parseInt(sshCredStr, 10);
+    }
+
+    if (!id || !hostname || !ipAddress) {
+        redirect(`/settings?error=${encodeURIComponent('Hostname and IP Address are required.')}`);
     }
 
     try {
-        const existingServer = await prisma.librenmsServer.findUnique({
+        const existingRouter = await prisma.routerDevice.findUnique({
             where: { id }
         });
 
-        if (!existingServer) {
-            redirect(`/settings?error=${encodeURIComponent('Server not found.')}`);
+        if (!existingRouter) {
+            redirect(`/settings?error=${encodeURIComponent('Router not found.')}`);
         }
 
-        const updateData: any = { name, apiUrl };
-        // Only update token if a new one was provided
-        if (apiToken && apiToken.trim()) {
-            updateData.apiToken = apiToken;
-        }
+        const updateData = { 
+            hostname, ipAddress, vendor, pollMethod, 
+            snmpVersion, snmpCommunity, snmpPort, sshCredentialId 
+        };
 
-        if (existingServer.name !== name) {
+        if (existingRouter.hostname !== hostname) {
             // If the name changed, we need to cascade the name update to the state tables
             
             // 1. Clear old Redis keys (the worker will recreate them with the new name on next sync)
-            const oldKeys = await redis.keys(`BgpSession:${existingServer.name}:*`);
+            const oldKeys = await redis.keys(`BgpSession:${existingRouter.hostname}:*`);
             if (oldKeys.length > 0) {
                 await redis.del(...oldKeys);
             }
@@ -96,51 +97,50 @@ export async function updateLibrenmsServer(formData: FormData) {
             // 2. Cascade historical events and update the server name in SQLite
             await prisma.$transaction([
                 prisma.historicalEvent.updateMany({
-                    where: { serverName: existingServer.name },
-                    data: { serverName: name }
+                    where: { serverName: existingRouter.hostname },
+                    data: { serverName: hostname }
                 }),
-                prisma.librenmsServer.update({
+                prisma.routerDevice.update({
                     where: { id },
                     data: updateData,
                 })
             ]);
         } else {
             // No name change, simple update
-            await prisma.librenmsServer.update({
+            await prisma.routerDevice.update({
                 where: { id },
                 data: updateData,
             });
         }
     } catch (error: any) {
-        // Only redirect if the error is not literally a navigation redirect from Next.js
         if (error.message && error.message.includes('NEXT_REDIRECT')) {
             throw error;
         }
-        redirect(`/settings?error=${encodeURIComponent(error.message || 'Failed to update server.')}`);
+        redirect(`/settings?error=${encodeURIComponent(error.message || 'Failed to update router.')}`);
     }
 
     redirect('/settings');
 }
 
-export async function deleteLibrenmsServer(id: number) {
+export async function deleteRouterDevice(id: number) {
     try {
-        const existingServer = await prisma.librenmsServer.findUnique({
+        const existingRouter = await prisma.routerDevice.findUnique({
             where: { id }
         });
 
-        if (existingServer) {
+        if (existingRouter) {
             // 1. Clear associated BGP sessions from Redis cache
-            const serverKeys = await redis.keys(`BgpSession:${existingServer.name}:*`);
+            const serverKeys = await redis.keys(`BgpSession:${existingRouter.hostname}:*`);
             if (serverKeys.length > 0) {
                 await redis.del(...serverKeys);
             }
 
-            // 2. Cascade delete the associated historical data and server config from SQLite
+            // 2. Cascade delete the associated historical data and router config from SQLite
             await prisma.$transaction([
                 prisma.historicalEvent.deleteMany({
-                    where: { serverName: existingServer.name }
+                    where: { serverName: existingRouter.hostname }
                 }),
-                prisma.librenmsServer.delete({
+                prisma.routerDevice.delete({
                     where: { id }
                 })
             ]);
@@ -148,14 +148,24 @@ export async function deleteLibrenmsServer(id: number) {
         
         revalidatePath('/settings');
     } catch (error: any) {
-        redirect(`/settings?error=${encodeURIComponent(error.message || 'Failed to delete server.')}`);
+        if (error.message && error.message.includes('NEXT_REDIRECT')) {
+            throw error;
+        }
+        redirect(`/settings?error=${encodeURIComponent(error.message || 'Failed to delete router.')}`);
     }
 }
 
+import { exec } from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
+
 export async function triggerManualSync() {
     try {
-        const { forceSyncLibreNMS } = await import('@/worker/sync');
-        await forceSyncLibreNMS('Manual UI');
+        // Run the background worker script via shell instead of importing it
+        // This ensures Next.js webpack doesn't try to bundle native SNMP/SSH libraries
+        await execAsync('npm run worker');
+        
         revalidatePath('/');
         revalidatePath('/settings');
         revalidatePath('/reports');

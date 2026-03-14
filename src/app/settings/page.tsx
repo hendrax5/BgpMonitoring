@@ -1,13 +1,18 @@
 import { prisma } from '@/lib/prisma';
-import { addLibrenmsServer, updateLibrenmsServer, deleteLibrenmsServer } from '@/app/actions/settings';
+import { addRouterDevice, updateRouterDevice, deleteRouterDevice } from '@/app/actions/settings';
 import { addUser, updateUser, deleteUser } from '@/app/actions/users';
 import SyncButton from '@/app/settings/components/SyncButton';
 
 export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ error?: string; edit?: string; editUser?: string }> }) {
     const { error, edit, editUser } = await searchParams;
     const editId = edit ? parseInt(edit) : null;
-    const servers = await prisma.librenmsServer.findMany({ orderBy: { createdAt: 'desc' } });
-    const editServer = editId ? servers.find(s => s.id === editId) : null;
+    const devices = await prisma.routerDevice.findMany({ 
+        orderBy: { createdAt: 'desc' },
+        include: { sshCredential: true } // Include to show linked credentials
+    });
+    const editDevice = editId ? devices.find((d: any) => d.id === editId) : null;
+
+    const credentials = await prisma.deviceCredential.findMany({ orderBy: { deviceIp: 'asc' } });
 
     const editUserId = editUser ? parseInt(editUser) : null;
     const users = await prisma.appUser.findMany({ orderBy: { createdAt: 'desc' } });
@@ -20,7 +25,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                 style={{ backgroundColor: '#0d1520', borderColor: 'rgba(255,255,255,0.07)' }}>
                 <div>
                     <h2 className="text-white font-bold text-base">Configuration Settings</h2>
-                    <p className="text-xs" style={{ color: '#64748b' }}>Manage LibreNMS API targets and SSH credentials.</p>
+                    <p className="text-xs" style={{ color: '#64748b' }}>Manage Monitored Routers and Application Users.</p>
                 </div>
                 <div className="flex items-center gap-4">
                     <SyncButton />
@@ -32,7 +37,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                 </div>
             </header>
 
-            <main className="p-6 max-w-5xl space-y-6 animate-fade-in">
+            <main className="p-6 max-w-6xl space-y-6 animate-fade-in mx-auto">
 
                 {error && (
                     <div className="card px-4 py-3 flex items-center gap-3" style={{ borderColor: 'rgba(244,63,94,0.3)', backgroundColor: 'rgba(244,63,94,0.08)' }}>
@@ -44,47 +49,105 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
 
                     <div className="md:col-span-1">
-                        <div className="card p-5">
+                        <div className="card p-5 sticky top-20">
                             <h3 className="font-bold text-white mb-1">
-                                {editServer ? 'Edit API Target' : 'Add API Target'}
+                                {editDevice ? 'Edit Router' : 'Add Monitored Router'}
                             </h3>
                             <p className="text-xs mb-5" style={{ color: '#64748b' }}>
-                                {editServer ? `Editing: ${editServer.name}` : 'Connect a LibreNMS server to sync BGP sessions.'}
+                                {editDevice ? `Editing: ${editDevice.hostname}` : 'Add a device to be polled directly via SNMP/SSH.'}
                             </p>
 
                             <form action={async (formData: FormData) => {
                                 'use server';
                                 const id = formData.get('id');
-                                if (id) await updateLibrenmsServer(formData);
-                                else await addLibrenmsServer(formData);
+                                if (id) await updateRouterDevice(formData);
+                                else await addRouterDevice(formData);
                             }} className="space-y-4">
 
-                                {editServer && <input type="hidden" name="id" value={editServer.id} />}
+                                {editDevice && <input type="hidden" name="id" value={editDevice.id} />}
 
                                 <div>
-                                    <label className="block text-xs font-medium mb-1" style={{ color: '#64748b' }}>Target Name</label>
-                                    <input type="text" name="name" placeholder="e.g. Core-Jakarta"
-                                        defaultValue={editServer?.name || ''}
+                                    <label className="block text-xs font-medium mb-1" style={{ color: '#64748b' }}>Hostname / Alias</label>
+                                    <input type="text" name="hostname" placeholder="e.g. Core-Jakarta"
+                                        defaultValue={editDevice?.hostname || ''}
                                         className="form-input" required />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-medium mb-1" style={{ color: '#64748b' }}>LibreNMS API URL</label>
-                                    <input type="text" name="apiUrl" placeholder="https://librenms.org/api/v0"
-                                        defaultValue={editServer?.apiUrl || ''}
+                                    <label className="block text-xs font-medium mb-1" style={{ color: '#64748b' }}>IP Address</label>
+                                    <input type="text" name="ipAddress" placeholder="e.g. 10.10.10.1"
+                                        defaultValue={editDevice?.ipAddress || ''}
                                         className="form-input" required />
                                 </div>
-                                <div>
-                                    <label className="block text-xs font-medium mb-1" style={{ color: '#64748b' }}>API Token</label>
-                                    <input type="password" name="apiToken" placeholder={editServer ? '(leave blank to keep current)' : '••••••••••••'}
-                                        className="form-input" required={!editServer} />
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-xs font-medium mb-1" style={{ color: '#64748b' }}>Vendor</label>
+                                        <select name="vendor" className="form-input" defaultValue={editDevice?.vendor || 'mikrotik'}>
+                                            <option value="mikrotik">MikroTik RouterOS</option>
+                                            <option value="cisco">Cisco IOS/XR</option>
+                                            <option value="juniper">Juniper JunOS</option>
+                                            <option value="huawei">Huawei VRP</option>
+                                            <option value="danos">DanOS</option>
+                                            <option value="vyos">VyOS</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium mb-1" style={{ color: '#64748b' }}>Polling Method</label>
+                                        <select name="pollMethod" className="form-input" defaultValue={editDevice?.pollMethod || 'snmp_ssh_mix'}>
+                                            <option value="snmp_ssh_mix">SNMP + SSH Mix</option>
+                                            <option value="snmp_only">SNMP Only</option>
+                                            <option value="ssh_only">SSH Only</option>
+                                        </select>
+                                    </div>
                                 </div>
 
-                                <div className="flex gap-2">
+                                <hr style={{ borderColor: 'rgba(255,255,255,0.07)' }} className="my-2" />
+                                
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-xs font-medium mb-1" style={{ color: '#64748b' }}>SNMP Version</label>
+                                        <select name="snmpVersion" className="form-input" defaultValue={editDevice?.snmpVersion || 'v2c'}>
+                                            <option value="v2c">v2c</option>
+                                            <option value="v3">v3</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium mb-1" style={{ color: '#64748b' }}>SNMP Port</label>
+                                        <input type="number" name="snmpPort" placeholder="161"
+                                            defaultValue={editDevice?.snmpPort || 161}
+                                            className="form-input" />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-medium mb-1" style={{ color: '#64748b' }}>SNMP Community / Context</label>
+                                    <input type="password" name="snmpCommunity" placeholder="••••••••"
+                                        defaultValue={editDevice?.snmpCommunity || ''}
+                                        className="form-input" />
+                                </div>
+
+                                <hr style={{ borderColor: 'rgba(255,255,255,0.07)' }} className="my-2" />
+
+                                <div>
+                                    <label className="block text-xs font-medium mb-1 flex justify-between" style={{ color: '#64748b' }}>
+                                        <span>Link SSH Credential</span>
+                                        <a href="/settings/devices" className="text-[#13a4ec] hover:underline" target="_blank">Manage</a>
+                                    </label>
+                                    <select name="sshCredentialId" className="form-input" defaultValue={editDevice?.sshCredentialId?.toString() || ''}>
+                                        <option value="">— None (SNMP Only) —</option>
+                                        {credentials.map(c => (
+                                            <option key={c.id} value={c.id}>
+                                                {c.sshUser}@{c.deviceIp} ({c.vendor}) {c.notes ? `- ${c.notes}` : ''}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+
+                                <div className="flex gap-2 pt-2">
                                     <button type="submit" className="flex-1 py-2.5 text-sm font-bold rounded-lg text-white"
                                         style={{ backgroundColor: '#13a4ec' }}>
-                                        {editServer ? 'Update Target' : 'Save API Target'}
+                                        {editDevice ? 'Update Router' : 'Save Router'}
                                     </button>
-                                    {editServer && (
+                                    {editDevice && (
                                         <a href="/settings" className="flex items-center justify-center px-4 py-2.5 text-sm rounded-lg"
                                             style={{ backgroundColor: 'rgba(255,255,255,0.06)', color: '#94a3b8' }}>
                                             Cancel
@@ -95,64 +158,77 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                         </div>
                     </div>
 
-                    {/* Configured Servers List */}
+                    {/* Configured Devices List */}
                     <div className="md:col-span-2 card overflow-hidden self-start">
-                        <div className="px-5 py-4 border-b" style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
-                            <h2 className="font-bold text-white">Configured Servers</h2>
-                            <p className="text-xs mt-0.5" style={{ color: '#64748b' }}>Worker iterates all servers every minute.</p>
+                        <div className="px-5 py-4 border-b flex justify-between" style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
+                            <div>
+                                <h2 className="font-bold text-white">Monitored Routers</h2>
+                                <p className="text-xs mt-0.5" style={{ color: '#64748b' }}>Worker polls these devices directly.</p>
+                            </div>
                         </div>
 
-                        {servers.length === 0 ? (
+                        {devices.length === 0 ? (
                             <div className="p-12 text-center">
-                                <span className="material-symbols-outlined text-4xl block mb-3" style={{ color: '#334155' }}>dns</span>
-                                <p className="font-medium text-white mb-1">No servers configured</p>
-                                <p className="text-sm" style={{ color: '#475569' }}>Add your first LibreNMS target on the left.</p>
+                                <span className="material-symbols-outlined text-4xl block mb-3" style={{ color: '#334155' }}>router</span>
+                                <p className="font-medium text-white mb-1">No routers configured</p>
+                                <p className="text-sm" style={{ color: '#475569' }}>Add your first target router on the left.</p>
                             </div>
                         ) : (
                             <div className="overflow-x-auto">
                                 <table className="w-full data-table">
                                     <thead>
                                         <tr>
-                                            <th>Name</th>
-                                            <th>API URL</th>
+                                            <th>Hostname & IP</th>
+                                            <th>Method & Vendor</th>
+                                            <th>SNMP Cred</th>
+                                            <th>SSH Link</th>
                                             <th style={{ textAlign: 'right' }}>Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {servers.map((server) => (
-                                            <tr key={server.id}>
+                                        {devices.map((device: any) => (
+                                            <tr key={device.id}>
                                                 <td>
-                                                    <div className="font-bold text-white">{server.name}</div>
-                                                    <div className="text-xs" style={{ color: '#64748b' }}>{server.createdAt.toLocaleDateString()}</div>
+                                                    <div className="font-bold text-white">{device.hostname}</div>
+                                                    <code className="text-xs font-mono" style={{ color: '#94a3b8' }}>{device.ipAddress}</code>
                                                 </td>
                                                 <td>
-                                                    <code className="text-xs font-mono break-all" style={{ color: '#94a3b8' }}>{server.apiUrl}</code>
-                                                    <div className="flex items-center gap-1 mt-1">
-                                                        <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#10b981' }}></span>
-                                                        <span className="text-[10px]" style={{ color: '#64748b' }}>Token configured</span>
+                                                    <div className="text-sm text-white capitalize">{device.vendor}</div>
+                                                    <div className="text-xs" style={{ color: '#64748b' }}>{device.pollMethod.replace(/_/g, ' ')}</div>
+                                                </td>
+                                                <td>
+                                                    <div className="flex items-center gap-1">
+                                                        <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ backgroundColor: device.snmpCommunity ? '#10b981' : '#475569' }}></span>
+                                                        <span className="text-[10px]" style={{ color: '#64748b' }}>{device.snmpVersion}</span>
                                                     </div>
+                                                </td>
+                                                <td>
+                                                    {device.sshCredential ? (
+                                                        <div className="text-xs flex flex-col">
+                                                            <span className="text-white">{device.sshCredential.sshUser}</span>
+                                                            <span style={{ color: '#64748b' }}>{device.sshCredential.deviceIp}</span>
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-xs" style={{ color: '#475569' }}>None</span>
+                                                    )}
                                                 </td>
                                                 <td style={{ textAlign: 'right' }}>
                                                     <div className="flex items-center justify-end gap-1">
-                                                        {/* Edit */}
-                                                        <a href={`/settings?edit=${server.id}`}
+                                                        <a href={`/settings?edit=${device.id}`}
                                                             className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg transition-colors"
                                                             style={{ color: '#13a4ec', backgroundColor: 'rgba(19,164,236,0.08)' }}
                                                             title="Edit">
                                                             <span className="material-symbols-outlined text-sm">edit</span>
-                                                            Edit
                                                         </a>
-                                                        {/* Delete */}
                                                         <form action={async () => {
                                                             'use server';
-                                                            await deleteLibrenmsServer(server.id);
+                                                            await deleteRouterDevice(device.id);
                                                         }}>
                                                             <button type="submit"
                                                                 className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg transition-colors"
                                                                 style={{ color: '#f43f5e', backgroundColor: 'rgba(244,63,94,0.08)' }}
                                                                 title="Delete">
                                                                 <span className="material-symbols-outlined text-sm">delete</span>
-                                                                Delete
                                                             </button>
                                                         </form>
                                                     </div>
@@ -164,23 +240,6 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                             </div>
                         )}
                     </div>
-                </div>
-
-                {/* Device Credentials Link */}
-                <div className="card p-5 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-lg" style={{ backgroundColor: 'rgba(19,164,236,0.12)', color: '#13a4ec' }}>
-                            <span className="material-symbols-outlined text-xl">device_hub</span>
-                        </div>
-                        <div>
-                            <h3 className="font-bold text-white">Device SSH Credentials</h3>
-                            <p className="text-xs" style={{ color: '#64748b' }}>Add per-device SSH credentials for Live Check feature</p>
-                        </div>
-                    </div>
-                    <a href="/settings/devices" className="flex items-center gap-1.5 text-xs font-bold px-4 py-2 rounded-lg"
-                        style={{ backgroundColor: '#13a4ec', color: 'white' }}>
-                        Manage →
-                    </a>
                 </div>
 
                 <hr style={{ borderColor: 'rgba(255,255,255,0.07)' }} />
@@ -264,7 +323,6 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                                                         style={{ color: '#13a4ec', backgroundColor: 'rgba(19,164,236,0.08)' }}
                                                         title="Edit">
                                                         <span className="material-symbols-outlined text-sm">edit</span>
-                                                        Edit
                                                     </a>
                                                     <form action={async () => {
                                                         'use server';
@@ -275,7 +333,6 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                                                             style={{ color: '#f43f5e', backgroundColor: 'rgba(244,63,94,0.08)' }}
                                                             title="Delete">
                                                             <span className="material-symbols-outlined text-sm">delete</span>
-                                                            Delete
                                                         </button>
                                                     </form>
                                                 </div>

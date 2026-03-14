@@ -10,7 +10,7 @@ generator client {
 
 datasource db {
   provider = "sqlite"
-  url      = "file:///app/data/bgp_watcher.db"
+  url      = env("DATABASE_URL")
 }
 
 model AsnDictionary {
@@ -61,18 +61,24 @@ model HistoricalEvent {
   @@map("historical_event")
 }
 
-model LibrenmsServer {
-  id        Int      @id @default(autoincrement())
-  name      String   @unique
-  apiUrl    String   @map("api_url")
-  apiToken  String   @map("api_token")
-  sshHost   String?  @map("ssh_host")
-  sshPort   Int?     @default(22) @map("ssh_port")
-  sshUser   String?  @map("ssh_user")
-  sshPass   String?  @map("ssh_pass")
-  createdAt DateTime @default(now()) @map("created_at")
+model RouterDevice {
+  id              Int      @id @default(autoincrement())
+  hostname        String   @unique
+  ipAddress       String   @unique @map("ip_address")
+  vendor          String   @default("mikrotik") // mikrotik | cisco | juniper | huawei | danos | vyos
+  
+  pollMethod      String   @default("snmp_ssh_mix") @map("poll_method") // snmp_only | ssh_only | snmp_ssh_mix
+  
+  snmpVersion     String   @default("v2c") @map("snmp_version")
+  snmpCommunity   String?  @map("snmp_community")
+  snmpPort        Int      @default(161) @map("snmp_port")
+  
+  sshCredentialId Int?     @map("ssh_credential_id")
+  sshCredential   DeviceCredential? @relation(fields: [sshCredentialId], references: [id], onDelete: SetNull)
 
-  @@map("librenms_server")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@map("router_device")
 }
 
 model DeviceCredential {
@@ -84,6 +90,8 @@ model DeviceCredential {
   vendor    String   @default("cisco") // cisco | juniper | huawei
   notes     String? // Optional label e.g. "Core Routers"
   createdAt DateTime @default(now()) @map("created_at")
+
+  routerDevices RouterDevice[]
 
   @@map("device_credential")
 }

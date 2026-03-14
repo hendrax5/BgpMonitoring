@@ -55,11 +55,16 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'deviceIp and peerIp are required' }, { status: 400 });
     }
 
-    const cred = await prisma.deviceCredential.findUnique({ where: { deviceIp } });
+    const router = await prisma.routerDevice.findUnique({
+        where: { ipAddress: deviceIp },
+        include: { sshCredential: true }
+    });
 
-    if (!cred) {
+    const cred = router?.sshCredential;
+
+    if (!router || !cred) {
         return NextResponse.json({
-            error: `No SSH credentials configured for ${deviceIp}. Please add them in Settings → Device SSH Credentials.`,
+            error: `No SSH credentials linked for router ${deviceIp}. Please add them in Settings.`,
             noCredentials: true
         }, { status: 400 });
     }
@@ -67,7 +72,7 @@ export async function POST(req: NextRequest) {
     return new Promise<NextResponse>((resolve) => {
         const conn = new Client();
         let output = '';
-        const command = getCommand(cred.vendor, checkType as CheckType, peerIp);
+        const command = getCommand(router.vendor, checkType as CheckType, peerIp);
 
         const timeout = setTimeout(() => {
             conn.end();
@@ -87,14 +92,14 @@ export async function POST(req: NextRequest) {
                 stream.on('close', () => {
                     clearTimeout(timeout);
                     conn.end();
-                    resolve(NextResponse.json({ output: output.trim(), command, vendor: cred.vendor }));
+                    resolve(NextResponse.json({ output: output.trim(), command, vendor: router.vendor }));
                 });
             });
         }).on('error', (err: any) => {
             clearTimeout(timeout);
             resolve(NextResponse.json({ error: `SSH Error: ${err.message}` }, { status: 500 }));
         }).connect({
-            host: deviceIp,
+            host: router.ipAddress,
             port: cred.sshPort,
             username: cred.sshUser,
             password: cred.sshPass,
