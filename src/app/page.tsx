@@ -1,5 +1,6 @@
 import { logout } from '@/app/actions/auth';
 import { prisma } from '@/lib/prisma';
+import { redis } from '@/lib/redis';
 import Link from 'next/link';
 import DashboardFilters from '@/app/components/DashboardFilters';
 import SortableHeader from '@/app/components/SortableHeader';
@@ -9,9 +10,22 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
   const { device, sort, status, search } = await searchParams;
 
   // Aggregate counts — scoped to selected device if filter is active
-  const deviceFilter = device && device !== 'all' ? { deviceName: device } : {};
-  const totalSessions = await prisma.bgpCurrentState.count({ where: deviceFilter });
-  const upSessions = await prisma.bgpCurrentState.count({ where: { ...deviceFilter, bgpState: 'Established' } });
+  // Since we use Redis now, we first grab all sessions:
+  const allRedisKeys = await redis.keys('BgpSession:*');
+  let allSessionsRaw: any[] = [];
+  
+  if (allRedisKeys.length > 0) {
+      const pipeline = redis.pipeline();
+      allRedisKeys.forEach(k => pipeline.hget(k, 'data'));
+      const results = await pipeline.exec();
+      allSessionsRaw = results?.map(([err, res]) => res ? JSON.parse(res as string) : null).filter(Boolean) || [];
+  }
+
+  const deviceFilter = device && device !== 'all' ? device : null;
+  const filteredSessionsByDevice = deviceFilter ? allSessionsRaw.filter(s => s.deviceName === deviceFilter) : allSessionsRaw;
+  
+  const totalSessions = filteredSessionsByDevice.length;
+  const upSessions = filteredSessionsByDevice.filter(s => s.bgpState === 'Established').length;
   const downSessions = totalSessions - upSessions;
 
   // Latest BGP events from LibreNMS API (live)
@@ -21,30 +35,32 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
   if (search) fetchOptions.search = search; // General query overrides
   const latestAlerts = await fetchLibreNmsBgpEvents(fetchOptions);
 
-  // Where clause
-  const whereClause: any = {};
-  if (device && device !== 'all') whereClause.deviceName = device;
+  // Where clause (in-memory filtering)
+  let allSessions = [...filteredSessionsByDevice];
+
   if (status && status !== 'all') {
-    if (status === 'down') whereClause.bgpState = { not: 'Established' };
-    else whereClause.bgpState = status;
+    if (status === 'down') allSessions = allSessions.filter(s => s.bgpState !== 'Established');
+    else allSessions = allSessions.filter(s => s.bgpState === status);
   }
 
-  // Sort mapping
-  type OrderBy = { [key: string]: 'asc' | 'desc' };
-  let orderBy: OrderBy | OrderBy[] = { bgpState: 'asc' };
-  if (sort === 'uptime') orderBy = { stateChangedAt: 'asc' };
-  else if (sort === 'uptime-asc') orderBy = { stateChangedAt: 'desc' };
-  else if (sort === 'prefix') orderBy = { acceptedPrefixes: 'desc' };
-  else if (sort === 'prefix-asc') orderBy = { acceptedPrefixes: 'asc' };
-  else if (sort === 'status') orderBy = [{ bgpState: 'desc' }, { stateChangedAt: 'asc' }];
-  else if (sort === 'status-asc') orderBy = [{ bgpState: 'asc' }, { stateChangedAt: 'asc' }];
-
-  let allSessions = await prisma.bgpCurrentState.findMany({
-    where: whereClause,
-    include: { asnDictionary: true },
-    orderBy,
+  // To map ASN Organization Name, we fetch the relevant ASNs from SQLite
+  const uniqueAsns = Array.from(new Set(allSessions.map(s => BigInt(s.remoteAsn))));
+  const asnDictionaryRecords = await prisma.asnDictionary.findMany({
+    where: { asn: { in: uniqueAsns } }
   });
+  
+  const asnMap = new Map();
+  asnDictionaryRecords.forEach(record => asnMap.set(record.asn.toString(), record.organizationName));
 
+  // Map the organization name into the objects and parse dates properly
+  allSessions = allSessions.map(s => ({
+      ...s,
+      stateChangedAt: new Date(s.stateChangedAt),
+      lastUpdated: new Date(s.lastUpdated),
+      asnDictionary: { organizationName: asnMap.get(s.remoteAsn.toString()) || 'Unknown AS' }
+  }));
+
+  // Filtering by search
   if (search) {
     const lowerSearch = search.toLowerCase();
     allSessions = allSessions.filter(s => 
@@ -55,13 +71,31 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
     );
   }
 
+  // Sort mapping (in-memory)
+  if (sort === 'uptime') allSessions.sort((a,b) => a.stateChangedAt.getTime() - b.stateChangedAt.getTime());
+  else if (sort === 'uptime-asc') allSessions.sort((a,b) => b.stateChangedAt.getTime() - a.stateChangedAt.getTime());
+  else if (sort === 'prefix') allSessions.sort((a,b) => (b.acceptedPrefixes || 0) - (a.acceptedPrefixes || 0));
+  else if (sort === 'prefix-asc') allSessions.sort((a,b) => (a.acceptedPrefixes || 0) - (b.acceptedPrefixes || 0));
+  else if (sort === 'status') {
+      allSessions.sort((a,b) => {
+          if (a.bgpState === b.bgpState) return a.stateChangedAt.getTime() - b.stateChangedAt.getTime();
+          return a.bgpState < b.bgpState ? 1 : -1;
+      });
+  }
+  else if (sort === 'status-asc') {
+      allSessions.sort((a,b) => {
+          if (a.bgpState === b.bgpState) return a.stateChangedAt.getTime() - b.stateChangedAt.getTime();
+          return a.bgpState > b.bgpState ? 1 : -1;
+      });
+  } else {
+      allSessions.sort((a,b) => {
+          if (a.bgpState === b.bgpState) return a.stateChangedAt.getTime() - b.stateChangedAt.getTime();
+          return a.bgpState > b.bgpState ? 1 : -1; // Default status asc
+      });
+  }
+
   // Distinct devices for filter
-  const devicesResult = await prisma.bgpCurrentState.findMany({
-    select: { deviceName: true },
-    distinct: ['deviceName'],
-    orderBy: { deviceName: 'asc' },
-  });
-  const devices = devicesResult.map((d) => d.deviceName);
+  const devices = Array.from(new Set(allSessionsRaw.map(s => s.deviceName))).sort();
 
   const fmt = (date: Date) => {
     const totalSec = Math.floor((Date.now() - date.getTime()) / 1000);
@@ -261,7 +295,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
                 ) : allSessions.map((s) => {
                   const isUp = s.bgpState === 'Established';
                   return (
-                    <tr key={s.id.toString()}>
+                    <tr key={`${s.serverName}-${s.deviceId}-${s.peerIp}`}>
                       <td>
                         <Link href={`/peers/${encodeURIComponent(s.peerIp)}`} className="flex flex-col hover:opacity-75 transition-opacity group">
                           <span className="font-bold text-white text-sm group-hover:text-[#13a4ec] transition-colors">{s.peerIp}</span>

@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { redis } from '@/lib/redis';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import LiveCheck from '@/app/components/LiveCheck';
@@ -7,11 +8,20 @@ export default async function PeerDetailsPage({ params }: { params: Promise<{ pe
     const { peerIp: rawPeerIp } = await params;
     const peerIp = decodeURIComponent(rawPeerIp);
 
-    // Fetch current peer state
-    const peer = await prisma.bgpCurrentState.findFirst({
-        where: { peerIp },
-        include: { asnDictionary: true },
-    });
+    // Fetch current peer state from Redis
+    const allKeys = await redis.keys(`BgpSession:*:${peerIp}`);
+    let peer: any = null;
+    if (allKeys.length > 0) {
+        const raw = await redis.hget(allKeys[0], 'data');
+        if (raw) peer = JSON.parse(raw);
+    }
+    
+    if (peer) {
+        const asnRec = await prisma.asnDictionary.findUnique({ where: { asn: peer.remoteAsn } });
+        peer.asnDictionary = asnRec;
+        peer.stateChangedAt = new Date(peer.stateChangedAt);
+        peer.lastUpdated = new Date(peer.lastUpdated);
+    }
 
     if (!peer) return notFound();
 

@@ -1,6 +1,7 @@
 import { getHistoricalEvents, getTopFlappingPeers } from '@/app/actions/reports';
 import { fetchLibreNmsBgpEvents } from '@/app/actions/librenms-events';
 import { prisma } from '@/lib/prisma';
+import { redis } from '@/lib/redis';
 import Link from 'next/link';
 
 export default async function ReportsPage(props: { searchParams: Promise<{ [key: string]: string | undefined }> }) {
@@ -21,8 +22,23 @@ export default async function ReportsPage(props: { searchParams: Promise<{ [key:
 
     // Summary counts
     const last24h = new Date(Date.now() - 86400000);
-    const totalSessions = await prisma.bgpCurrentState.count();
-    const downSessions = await prisma.bgpCurrentState.count({ where: { bgpState: { not: 'Established' } } });
+    
+    // Instead of SQLite we count keys via Redis
+    const allKeys = await redis.keys('BgpSession:*');
+    let downSessions = 0;
+    
+    if (allKeys.length > 0) {
+        const pipeline = redis.pipeline();
+        allKeys.forEach(k => pipeline.hget(k, 'data'));
+        const results = await pipeline.exec();
+        results?.forEach(([err, res]) => {
+            if (res) {
+                const s = JSON.parse(res as string);
+                if (s.bgpState !== 'Established') downSessions++;
+            }
+        });
+    }
+    const totalSessions = allKeys.length;
     const events24h = await prisma.historicalEvent.count({ where: { eventTimestamp: { gte: last24h } } });
 
     const fmtDur = (sec: number | null) => {

@@ -1,4 +1,5 @@
 import { prisma } from '../lib/prisma';
+import { redis } from '../lib/redis';
 
 const TELEGRAM_MOCK_LOG = true;
 
@@ -181,133 +182,108 @@ export async function forceSyncLibreNMS(triggeredBy: string = 'Worker') {
         for (const session of activeSessions) {
             const isUp = session.bgpState === 'Established';
             const orgName = await lookupAsnName(session.remoteAsn);
+            const redisKey = `BgpSession:${session.serverName}:${session.deviceId}:${session.peerIp}`;
 
             try {
-                // Check previous known state in cache
-                const existingState = await prisma.bgpCurrentState.findUnique({
-                    where: {
-                        serverName_deviceId_peerIp: {
+                // Check previous known state in Redis cache
+                const existingStateStr = await redis.hget(redisKey, 'data');
+                const existingState = existingStateStr ? JSON.parse(existingStateStr) : null;
+
+                const currentStateObj = {
+                    ...session,
+                    stateChangedAt: existingState?.stateChangedAt || new Date().toISOString(),
+                    lastUpdated: new Date().toISOString(),
+                };
+
+                if (!existingState) {
+                    // First time seeing this session, just store it in Redis
+                    await redis.hset(redisKey, 'data', JSON.stringify(currentStateObj));
+                    continue;
+                }
+
+                // Determine state transition
+                const wasUp = existingState.bgpState === 'Established';
+
+                if (wasUp && !isUp) {
+                    // TRANSITION: UP -> DOWN
+                    await prisma.historicalEvent.create({
+                        data: {
                             serverName: session.serverName,
-                            deviceId: session.deviceId,
-                            peerIp: session.peerIp
+                            eventTimestamp: new Date(),
+                            deviceName: session.deviceName,
+                            deviceIp: session.deviceIp,
+                            peerIp: session.peerIp,
+                            asn: session.remoteAsn,
+                            organizationName: orgName,
+                            eventType: 'DOWN'
                         }
+                    });
+                    sendTelegramAlert('DOWN', session, orgName);
+                    currentStateObj.stateChangedAt = new Date().toISOString();
+                }
+                else if (!wasUp && isUp) {
+                    // TRANSITION: DOWN -> UP
+                    const lastDownEvent = await prisma.historicalEvent.findFirst({
+                        where: {
+                            serverName: session.serverName,
+                            peerIp: session.peerIp,
+                            eventType: 'DOWN'
+                        },
+                        orderBy: { eventTimestamp: 'desc' }
+                    });
+
+                    let downtimeDuration = null;
+                    let downEventId = null;
+
+                    if (lastDownEvent) {
+                        downtimeDuration = Math.floor((new Date().getTime() - lastDownEvent.eventTimestamp.getTime()) / 1000);
+                        downEventId = lastDownEvent.eventId;
                     }
-                });
 
-            if (!existingState) {
-                // First time seeing this session, just store it
-                await prisma.bgpCurrentState.create({
-                    data: {
-                        ...session,
-                        stateChangedAt: new Date(),
-                        lastUpdated: new Date()
-                    }
-                });
-                continue;
-            }
-
-            // Determine state transition
-            const wasUp = existingState.bgpState === 'Established';
-
-            if (wasUp && !isUp) {
-                // TRANSITION: UP -> DOWN
-                await prisma.historicalEvent.create({
-                    data: {
-                        serverName: session.serverName,
-                        eventTimestamp: new Date(),
-                        deviceName: session.deviceName,
-                        deviceIp: session.deviceIp,
-                        peerIp: session.peerIp,
-                        asn: session.remoteAsn,
-                        organizationName: orgName,
-                        eventType: 'DOWN'
-                    }
-                });
-                sendTelegramAlert('DOWN', session, orgName);
-            }
-            else if (!wasUp && isUp) {
-                // TRANSITION: DOWN -> UP
-                // Find the last DOWN event to calc duration
-                const lastDownEvent = await prisma.historicalEvent.findFirst({
-                    where: {
-                        serverName: session.serverName,
-                        peerIp: session.peerIp,
-                        eventType: 'DOWN'
-                    },
-                    orderBy: { eventTimestamp: 'desc' }
-                });
-
-                let downtimeDuration = null;
-                let downEventId = null;
-
-                if (lastDownEvent) {
-                    downtimeDuration = Math.floor((new Date().getTime() - lastDownEvent.eventTimestamp.getTime()) / 1000);
-                    downEventId = lastDownEvent.eventId;
+                    await prisma.historicalEvent.create({
+                        data: {
+                            serverName: session.serverName,
+                            eventTimestamp: new Date(),
+                            deviceName: session.deviceName,
+                            deviceIp: session.deviceIp,
+                            peerIp: session.peerIp,
+                            asn: session.remoteAsn,
+                            organizationName: orgName,
+                            eventType: 'UP',
+                            downEventId,
+                            downtimeDuration
+                        }
+                    });
+                    sendTelegramAlert('UP', session, orgName, downtimeDuration ?? undefined);
+                     currentStateObj.stateChangedAt = new Date().toISOString();
                 }
 
-                await prisma.historicalEvent.create({
-                    data: {
-                        serverName: session.serverName,
-                        eventTimestamp: new Date(),
-                        deviceName: session.deviceName,
-                        deviceIp: session.deviceIp,
-                        peerIp: session.peerIp,
-                        asn: session.remoteAsn,
-                        organizationName: orgName,
-                        eventType: 'UP',
-                        downEventId,
-                        downtimeDuration
-                    }
-                });
-                sendTelegramAlert('UP', session, orgName, downtimeDuration ?? undefined);
-            }
-
-                // Update Current State Cache
-                await prisma.bgpCurrentState.update({
-                    where: { id: existingState.id },
-                    data: {
-                        bgpState: session.bgpState,
-                        acceptedPrefixes: session.acceptedPrefixes,
-                        advertisedPrefixes: session.advertisedPrefixes,
-                        stateChangedAt: existingState.bgpState !== session.bgpState ? new Date() : existingState.stateChangedAt,
-                        lastUpdated: new Date()
-                    }
-                });
+                // Update Current State Cache in Redis
+                await redis.hset(redisKey, 'data', JSON.stringify(currentStateObj));
             } catch (err: any) {
-                if (err.code === 'P2002') {
-                    console.warn(`⚠️ Skipped duplicate BGP session in API payload for ${session.deviceName} (${session.peerIp})`);
-                } else {
-                    console.error(`❌ DB error while processing session for ${session.deviceName} (${session.peerIp}):`, err.message);
-                }
+                console.error(`\u274c Redis/DB error while processing session for ${session.deviceName} (${session.peerIp}):`, err.message);
             }
-            // Sleep briefly to yield SQLite lock to the main web process
+            // Sleep briefly to yield SQLite lock (for history events) to the main web process
             await sleep(20);
         }
 
-        // --- Cleanup: Remove stale sessions that no longer exist in LibreNMS ---
-        // Build a set of active session keys from LibreNMS response
+        // --- Cleanup: Remove stale sessions from Redis ---
+        // Find all stored sessions for this server in Redis
+        const storedKeys = await redis.keys(`BgpSession:${srv.name}:*`);
+
+        // Build a Map of active keys from LibreNMS response for quick lookup
         const activeKeys = new Set(
-            activeSessions.map((s: any) => `${s.serverName}|${s.deviceId}|${s.peerIp}`)
+            activeSessions.map((s: any) => `BgpSession:${s.serverName}:${s.deviceId}:${s.peerIp}`)
         );
 
-        // Find all stored sessions for this server
-        const storedSessions = await prisma.bgpCurrentState.findMany({
-            where: { serverName: srv.name }
-        });
+        // Identify keys in Redis that are no longer reported by LibreNMS
+        const staleKeys = storedKeys.filter(key => !activeKeys.has(key));
 
-        // Identify sessions in DB that are no longer reported by LibreNMS
-        const staleSessions = storedSessions.filter(
-            (s) => !activeKeys.has(`${s.serverName}|${s.deviceId}|${s.peerIp}`)
-        );
-
-        if (staleSessions.length > 0) {
-            const staleIds = staleSessions.map((s) => s.id);
-            await prisma.bgpCurrentState.deleteMany({
-                where: { id: { in: staleIds } }
-            });
-            console.log(`\ud83d\uddd1\ufe0f  Removed ${staleSessions.length} stale session(s) from DB for ${srv.name}:`);
-            for (const s of staleSessions) {
-                console.log(`   - ${s.deviceName} | peer: ${s.peerIp} | ASN: ${s.remoteAsn}`);
+        if (staleKeys.length > 0) {
+            await redis.del(...staleKeys);
+            console.log(`\ud83d\uddd1\ufe0f  Removed ${staleKeys.length} stale session(s) from Redis for ${srv.name}.`);
+            for (const k of staleKeys) {
+                console.log(`   - ${k}`);
             }
         }
 

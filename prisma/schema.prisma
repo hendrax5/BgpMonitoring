@@ -77,12 +77,12 @@ model LibrenmsServer {
 
 model DeviceCredential {
   id        Int      @id @default(autoincrement())
-  deviceIp  String   @unique @map("device_ip")  // Exact IP or CIDR prefix like 10.1.1.
+  deviceIp  String   @unique @map("device_ip") // Exact IP or CIDR prefix like 10.1.1.
   sshPort   Int      @default(22) @map("ssh_port")
   sshUser   String   @map("ssh_user")
   sshPass   String   @map("ssh_pass")
   vendor    String   @default("cisco") // cisco | juniper | huawei
-  notes     String?  // Optional label e.g. "Core Routers"
+  notes     String? // Optional label e.g. "Core Routers"
   createdAt DateTime @default(now()) @map("created_at")
 
   @@map("device_credential")
@@ -93,5 +93,6 @@ model AppUser {
   username  String   @unique
   password  String // hashed
   createdAt DateTime @default(now()) @map("created_at")
+
   @@map("app_users")
 }
