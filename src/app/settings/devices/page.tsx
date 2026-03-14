@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { redis } from '@/lib/redis';
+import { requireSession } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
@@ -7,6 +8,7 @@ export const dynamic = 'force-dynamic';
 
 async function addDeviceCredential(formData: FormData) {
     'use server';
+    const session = await requireSession();
     const deviceIp = formData.get('deviceIp') as string;
     const sshUser = formData.get('sshUser') as string;
     const sshPass = formData.get('sshPass') as string;
@@ -14,9 +16,9 @@ async function addDeviceCredential(formData: FormData) {
     const vendor = formData.get('vendor') as string;
     const notes = formData.get('notes') as string;
 
-    await prisma.deviceCredential.upsert({
-        where: { deviceIp },
-        create: { deviceIp, sshUser, sshPass, sshPort, vendor, notes },
+    await (prisma as any).deviceCredential.upsert({
+        where: { tenantId_deviceIp: { tenantId: session.tenantId, deviceIp } },
+        create: { tenantId: session.tenantId, deviceIp, sshUser, sshPass, sshPort, vendor, notes },
         update: { sshUser, sshPass, sshPort, vendor, notes },
     });
     revalidatePath('/settings/devices');
@@ -25,7 +27,8 @@ async function addDeviceCredential(formData: FormData) {
 
 async function deleteDeviceCredential(id: number) {
     'use server';
-    await prisma.deviceCredential.delete({ where: { id } });
+    const session = await requireSession();
+    await (prisma as any).deviceCredential.deleteMany({ where: { id, tenantId: session.tenantId } });
     revalidatePath('/settings/devices');
 }
 
@@ -38,7 +41,11 @@ const VENDOR_LABELS: Record<string, string> = {
 };
 
 export default async function DeviceCredentialsPage() {
-    const creds = await prisma.deviceCredential.findMany({ orderBy: { deviceIp: 'asc' } });
+    const session = await requireSession();
+    const creds = await (prisma as any).deviceCredential.findMany({
+        where: { tenantId: session.tenantId },
+        orderBy: { deviceIp: 'asc' }
+    });
 
     // Get all known device IPs from current BGP state for autocomplete suggestions
     let knownDevices: { deviceIp: string; deviceName: string }[] = [];
