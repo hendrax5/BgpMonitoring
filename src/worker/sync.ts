@@ -8,7 +8,9 @@ import { JuniperPoller } from '../lib/pollers/vendors/juniper';
 import { HuaweiPoller } from '../lib/pollers/vendors/huawei';
 import { BgpPeerState } from '../lib/pollers/base';
 
-const TELEGRAM_MOCK_LOG = true;
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
+const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || '';
+const TELEGRAM_ENABLED = !!(TELEGRAM_BOT_TOKEN && TELEGRAM_CHAT_ID);
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -50,30 +52,51 @@ export async function lookupAsnName(asn: bigint): Promise<string> {
     return orgName;
 }
 
-export function sendTelegramAlert(type: 'DOWN' | 'UP', data: any, organizationName: string, duration?: number) {
-    if (!TELEGRAM_MOCK_LOG) return;
-
+export async function sendTelegramAlert(type: 'DOWN' | 'UP', data: any, organizationName: string, duration?: number) {
     const icon = type === 'DOWN' ? '🚨' : '✅';
     const stateLabel = type === 'DOWN' ? 'DOWN' : 'RECOVERED';
-    let message = `${icon} *BGP ${stateLabel}*\n`;
-    message += `*Device:* ${data.deviceName} (${data.deviceIp})\n`;
-    message += `*Peer IP:* ${data.peerIp}\n`;
-    message += `*ASN:* ${data.remoteAsn} - *${organizationName}*\n`;
+    const nowStr = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' });
 
-    const nowStr = new Date().toISOString();
-    if (type === 'DOWN') {
-        message += `*Time Down:* ${nowStr}\n`;
-    } else {
-        message += `*Time Up:* ${nowStr}\n`;
-        if (duration !== undefined) {
-            const mins = Math.floor(duration / 60);
-            message += `*Total Downtime:* ${mins > 0 ? `${mins} Menit` : `${duration} Detik`}\n`;
-        }
+    let message = `${icon} *BGP ${stateLabel}*\n`;
+    message += `*Device:* ${data.deviceName} \`(${data.deviceIp})\`\n`;
+    message += `*Peer IP:* \`${data.peerIp}\`\n`;
+    message += `*ASN:* AS${data.remoteAsn} — *${organizationName}*\n`;
+    message += `*Waktu:* ${nowStr}\n`;
+
+    if (type === 'UP' && duration !== undefined) {
+        const mins = Math.floor(duration / 60);
+        const secs = duration % 60;
+        message += `*Total Downtime:* ${mins > 0 ? `${mins}m ${secs}s` : `${secs}s`}\n`;
     }
 
-    console.log('\n--- [Mock Telegram Message Scheduled] ---');
-    console.log(message);
-    console.log('-------------------------------------------\n');
+    if (!TELEGRAM_ENABLED) {
+        console.log(`\n--- [Telegram Alert - No Token Set] ---`);
+        console.log(message.replace(/\*/g, ''));
+        console.log(`---------------------------------------\n`);
+        return;
+    }
+
+    try {
+        const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                chat_id: TELEGRAM_CHAT_ID,
+                text: message,
+                parse_mode: 'Markdown',
+            }),
+            signal: AbortSignal.timeout(8000),
+        });
+        if (!res.ok) {
+            const err = await res.text();
+            console.error(`❌ Telegram API error: ${err}`);
+        } else {
+            console.log(`📨 Telegram ${type} alert sent for ${data.peerIp}`);
+        }
+    } catch (err: any) {
+        console.error(`❌ Failed to send Telegram alert: ${err.message}`);
+    }
 }
 
 export async function forceSyncLibreNMS(triggeredBy: string = 'Worker') {
@@ -199,7 +222,7 @@ export async function forceSyncLibreNMS(triggeredBy: string = 'Worker') {
                             eventType: 'DOWN'
                         }
                     });
-                    sendTelegramAlert('DOWN', session, orgName);
+                    sendTelegramAlert('DOWN', session, orgName).catch(() => {});
                     currentStateObj.stateChangedAt = new Date().toISOString();
                 }
                 else if (!wasUp && isUp) {
@@ -235,7 +258,7 @@ export async function forceSyncLibreNMS(triggeredBy: string = 'Worker') {
                             downtimeDuration
                         }
                     });
-                    sendTelegramAlert('UP', session, orgName, downtimeDuration ?? undefined);
+                    sendTelegramAlert('UP', session, orgName, downtimeDuration ?? undefined).catch(() => {});
                      currentStateObj.stateChangedAt = new Date().toISOString();
                 }
 
