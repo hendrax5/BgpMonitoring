@@ -43,11 +43,6 @@ export default async function DeviceCredentialsPage() {
     // Get all known device IPs from current BGP state for autocomplete suggestions
     let knownDevices: { deviceIp: string; deviceName: string }[] = [];
     try {
-        // Ensure the Redis connection is established (required with lazyConnect)
-        if (redis.status === 'wait' || redis.status === 'close') {
-            await redis.connect();
-        }
-
         const allKeys = await redis.keys('BgpSession:*');
         const knownDevicesMap = new Map();
         if (allKeys.length > 0) {
@@ -66,7 +61,6 @@ export default async function DeviceCredentialsPage() {
         knownDevices = Array.from(knownDevicesMap.values()).sort((a, b) => a.deviceName.localeCompare(b.deviceName));
     } catch (err) {
         console.error('[DevicesPage] Failed to fetch device list from Redis:', err);
-        // Remains empty [] — page still renders, just no autocomplete
     }
 
     return (

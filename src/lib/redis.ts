@@ -11,10 +11,8 @@ function createRedisClient(): Redis {
     const client = new Redis(REDIS_URL, {
         maxRetriesPerRequest: null,
         enableReadyCheck: false,
-        lazyConnect: true,          // Don't connect immediately on startup
         retryStrategy: (times) => {
-            // Retry with exponential backoff up to 10 seconds
-            if (times > 5) return null; // Give up after 5 retries
+            if (times > 5) return null;
             return Math.min(times * 500, 10000);
         },
     });
