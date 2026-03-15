@@ -75,10 +75,6 @@ export default function LoginPage() {
                             {loading ? 'Signing in...' : 'Sign In'}
                         </button>
                     </form>
-                    <p className="text-center text-sm" style={{ color: '#475569' }}>
-                        New organization?{' '}
-                        <Link href="/register" className="font-bold hover:underline" style={{ color: '#13a4ec' }}>Register here</Link>
-                    </p>
                 </div>
             </div>
         </div>

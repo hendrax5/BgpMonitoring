@@ -9,15 +9,24 @@ export async function GET(
 ) {
     const { deviceId } = await params;
     const id = parseInt(deviceId);
+    const tenantId = req.headers.get('x-tenant-id');
+    const userRole = req.headers.get('x-user-role');
 
     if (!id) return NextResponse.json({ error: 'Invalid deviceId' }, { status: 400 });
+    if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const device = await prisma.routerDevice.findUnique({
+    const device = await prisma.routerDevice.findFirst({
         where: { id },
         include: { sshCredential: true },
     });
 
     if (!device) return NextResponse.json({ error: 'Device not found' }, { status: 404 });
+
+    // Isolasi tenant: pastikan device milik tenant yang sama
+    if (userRole !== 'superadmin' && (device as any).tenantId !== tenantId) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     if (!device.sshCredential) {
         return NextResponse.json({ error: 'No SSH credentials configured for this device', events: [] }, { status: 200 });
     }

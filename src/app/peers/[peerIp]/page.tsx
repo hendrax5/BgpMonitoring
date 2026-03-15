@@ -3,36 +3,45 @@ import { redis } from '@/lib/redis';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import LiveCheck from '@/app/components/LiveCheck';
+import { requireSession } from '@/lib/auth';
 
 export default async function PeerDetailsPage({ params }: { params: Promise<{ peerIp: string }> }) {
+    const session = await requireSession();
     const { peerIp: rawPeerIp } = await params;
     const peerIp = decodeURIComponent(rawPeerIp);
 
-    // Fetch current peer state from Redis
-    const allKeys = await redis.keys(`BgpSession:*:${peerIp}`);
+    // Isolasi tenant: superadmin bisa lihat semua, user lain hanya tenant sendiri
+    const redisPattern = session.role === 'superadmin'
+        ? `BgpSession:*:${peerIp}`
+        : `BgpSession:${session.tenantId}:*:${peerIp}`;
+
+    const allKeys = await redis.keys(redisPattern).catch(() => [] as string[]);
     let peer: any = null;
     if (allKeys.length > 0) {
         const raw = await redis.hget(allKeys[0], 'data');
         if (raw) peer = JSON.parse(raw);
     }
-    
+
     if (peer) {
         const asnRec = await prisma.asnDictionary.findUnique({ where: { asn: peer.remoteAsn } });
         peer.asnDictionary = asnRec;
         peer.stateChangedAt = new Date(peer.stateChangedAt);
         peer.lastUpdated = new Date(peer.lastUpdated);
-        // Fallback for old sessions where deviceIp was an empty string
         peer.deviceIp = peer.deviceIp || peer.deviceName;
     }
 
     if (!peer) return notFound();
 
-    // Fetch all historical events for this peer
+    // Historical events — filter by tenantId for non-superadmin
+    const eventsWhere: any = { peerIp };
+    if (session.role !== 'superadmin') eventsWhere.tenantId = session.tenantId;
+
     const events = await prisma.historicalEvent.findMany({
-        where: { peerIp },
+        where: eventsWhere,
         orderBy: { eventTimestamp: 'desc' },
         take: 50,
     });
+
 
     const isUp = peer.bgpState === 'Established';
     const asn = peer.remoteAsn.toString();

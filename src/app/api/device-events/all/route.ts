@@ -1,19 +1,27 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+    const tenantId = req.headers.get('x-tenant-id');
+    const userRole = req.headers.get('x-user-role');
+
+    if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    // Isolasi tenant: superadmin lihat semua, user lain hanya tenant sendiri
+    const where: any = { sshCredentialId: { not: null } };
+    if (userRole !== 'superadmin') where.tenantId = tenantId;
+
     const devices = await prisma.routerDevice.findMany({
         select: { id: true, hostname: true, ipAddress: true, vendor: true, sshCredential: true },
-        where: { sshCredentialId: { not: null } }, // Only devices with SSH creds
+        where,
     });
 
     if (devices.length === 0) {
         return NextResponse.json({ events: [], deviceCount: 0 });
     }
 
-    // Fetch logs from all devices in parallel with 10s timeout per device
     const results = await Promise.allSettled(
         devices.map(async (device) => {
             let poller: any;
@@ -45,13 +53,9 @@ export async function GET() {
         })
     );
 
-    // Merge all events from all devices, skip failed devices
     const allEvents = results
         .filter((r): r is PromiseFulfilledResult<any[]> => r.status === 'fulfilled')
         .flatMap(r => r.value);
 
-    return NextResponse.json({
-        events: allEvents,
-        deviceCount: devices.length,
-    });
+    return NextResponse.json({ events: allEvents, deviceCount: devices.length });
 }
