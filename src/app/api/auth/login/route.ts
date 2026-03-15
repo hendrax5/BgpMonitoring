@@ -41,16 +41,22 @@ export async function POST(request: NextRequest) {
             role: user.role as 'superadmin' | 'orgadmin' | 'viewer',
         });
 
+        // Detect if actual connection is HTTPS (Traefik sets X-Forwarded-Proto)
+        // If served over HTTP, Secure flag causes browser to DROP the cookie
+        const proto = request.headers.get('x-forwarded-proto') ?? 'http';
+        const isHttps = proto === 'https';
+
         // Set cookie directly on the response object — avoids server action cookie issues
         const response = NextResponse.json({ success: true });
         response.cookies.set(COOKIE_NAME, token, {
             httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
+            secure: isHttps, // Only set Secure if actually HTTPS
             sameSite: 'lax',
             maxAge: MAX_AGE,
             path: '/',
         });
         return response;
+
 
     } catch (err: any) {
         console.error('[/api/auth/login] Error:', err?.message);
