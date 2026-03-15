@@ -30,8 +30,6 @@ services:
       - POSTGRES_USER=bgpmon
       - POSTGRES_PASSWORD=bgpmon_secret
       - POSTGRES_DB=bgpmon
-    ports:
-      - "5432:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
     healthcheck:
@@ -44,8 +42,6 @@ services:
     image: redis:alpine
     container_name: librenms_redis
     restart: unless-stopped
-    ports:
-      - "6379:6379"
     volumes:
       - redis_data:/data
 
