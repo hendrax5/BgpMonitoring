@@ -17,6 +17,7 @@ export default function LoginPage() {
             const res = await fetch('/api/auth/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
                 body: JSON.stringify({
                     username: (e.currentTarget.elements.namedItem('username') as HTMLInputElement).value,
                     password: (e.currentTarget.elements.namedItem('password') as HTMLInputElement).value,
@@ -24,15 +25,16 @@ export default function LoginPage() {
             });
             const result = await res.json();
             if (result?.success) {
-                router.push('/');
-                router.refresh();
+                // Hard navigation — ensures cookie is stored before new request
+                window.location.href = '/';
                 return;
             }
-            setError(result?.error || 'Login failed');
+            setError(result?.error || `Login failed (HTTP ${res.status})`);
         } catch (err: any) {
-            setError(err?.message || 'Network error');
+            setError(err?.message || 'Network error — check console');
         }
         setLoading(false);
+
     }
 
     return (
