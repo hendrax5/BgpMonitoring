@@ -1,4 +1,4 @@
-import { BasePoller, BgpPeerState, BgpEventLog } from '../base';
+import { BasePoller, BgpPeerState, BgpEventLog, parseBgpUptime } from '../base';
 import { SshPoller } from '../ssh';
 
 export class CiscoPoller extends BasePoller {
@@ -30,8 +30,13 @@ export class CiscoPoller extends BasePoller {
                 let bgpState = 'Idle', acceptedPrefixes = 0;
                 if (/^\d+$/.test(stateOrPfx)) { bgpState = 'Established'; acceptedPrefixes = parseInt(stateOrPfx, 10); }
                 else { bgpState = stateOrPfx; }
+
+                // Uptime is usually the 2nd to last column (parts[parts.length - 2])
+                const uptimeStr = parts[parts.length - 2];
+
                 peers.push({
                     peerIp, remoteAsn, bgpState, acceptedPrefixes,
+                    uptime: bgpState === 'Established' ? parseBgpUptime(uptimeStr) : undefined,
                     advertisedPrefixes: sentMap.get(peerIp) ?? 0,
                     description: descMap.get(peerIp),
                 });

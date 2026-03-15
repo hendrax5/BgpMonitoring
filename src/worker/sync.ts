@@ -210,9 +210,21 @@ export async function forceSyncLibreNMS(triggeredBy: string = 'Worker') {
                 const existingStateStr = await redis.hget(redisKey, 'data');
                 const existingState = existingStateStr ? JSON.parse(existingStateStr) : null;
 
+                let calculatedStateChangedAt = existingState?.stateChangedAt || new Date().toISOString();
+                if (isUp && peer.uptime && peer.uptime > 0) {
+                    const uptimeMs = peer.uptime * 1000;
+                    const estimatedChange = new Date(Date.now() - uptimeMs);
+                    
+                    // Prevent drift update loop: only update if discrepancy is > 2 mins
+                    const existingTime = new Date(calculatedStateChangedAt).getTime();
+                    if (isNaN(existingTime) || Math.abs(estimatedChange.getTime() - existingTime) > 120000) {
+                        calculatedStateChangedAt = estimatedChange.toISOString();
+                    }
+                }
+
                 const currentStateObj = {
                     ...session,
-                    stateChangedAt: existingState?.stateChangedAt || new Date().toISOString(),
+                    stateChangedAt: calculatedStateChangedAt,
                     lastUpdated: new Date().toISOString(),
                 };
 

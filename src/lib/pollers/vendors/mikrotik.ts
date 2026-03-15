@@ -1,4 +1,4 @@
-import { BasePoller, BgpPeerState, BgpEventLog } from '../base';
+import { BasePoller, BgpPeerState, BgpEventLog, parseBgpUptime } from '../base';
 import { SshPoller } from '../ssh';
 
 export class MikrotikPoller extends BasePoller {
@@ -65,6 +65,8 @@ export class MikrotikPoller extends BasePoller {
             const asnMatch = flat.match(/(?:remote\.as|(?<![a-z])\.as)=(\d+)/);
             // state: state=established or .state=
             const stateMatch = flat.match(/(?:^|[\s.])state=([a-zA-Z-]+)/i);
+            // uptime: uptime=1d2h or .uptime=1d2h
+            const uptimeMatch = flat.match(/(?:^|[\s.])uptime=([a-zA-Z0-9:]+)/);
             // prefix-count for received, sent-prefix-count for sent
             const rxMatch = flat.match(/(?<![a-z-])prefix-count=(\d+)/);
             const txMatch = flat.match(/sent-prefix-count=(\d+)/);
@@ -86,6 +88,7 @@ export class MikrotikPoller extends BasePoller {
                 peerIp: rawIp,
                 remoteAsn: rawAsn,
                 bgpState,
+                uptime: uptimeMatch ? parseBgpUptime(uptimeMatch[1]) : undefined,
                 acceptedPrefixes: rxMatch ? parseInt(rxMatch[1], 10) : 0,
                 advertisedPrefixes: txMatch ? parseInt(txMatch[1], 10) : 0,
                 description: nameMatch?.[1]?.trim() || undefined,
@@ -110,6 +113,7 @@ export class MikrotikPoller extends BasePoller {
             const ipMatch = block.match(/remote-address=([\da-fA-F:.]+)/);
             const asnMatch = block.match(/remote-as=(\d+)/);
             const stateMatch = block.match(/state=([a-zA-Z-]+)/i);
+            const uptimeMatch = block.match(/uptime=([a-zA-Z0-9:]+)/);
             const nameMatch = block.match(/name="?([^"\n\s]+)"?/);
             const prefixMatch = block.match(/prefix-count=(\d+)/);
 
@@ -120,6 +124,7 @@ export class MikrotikPoller extends BasePoller {
                 peerIp: ipMatch[1],
                 remoteAsn: parseInt(asnMatch[1], 10),
                 bgpState: state === 'established' ? 'Established' : state,
+                uptime: uptimeMatch ? parseBgpUptime(uptimeMatch[1]) : undefined,
                 acceptedPrefixes: prefixMatch ? parseInt(prefixMatch[1], 10) : 0,
                 advertisedPrefixes: 0,
                 description: nameMatch?.[1]?.trim() || undefined,

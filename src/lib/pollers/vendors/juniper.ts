@@ -1,4 +1,4 @@
-import { BasePoller, BgpPeerState, BgpEventLog } from '../base';
+import { BasePoller, BgpPeerState, BgpEventLog, parseBgpUptime } from '../base';
 import { SshPoller } from '../ssh';
 
 export class JuniperPoller extends BasePoller {
@@ -29,6 +29,7 @@ export class JuniperPoller extends BasePoller {
                 const peerIp = parts[0];
                 const remoteAsn = parseInt(parts[1], 10);
                 const stateStr = parts[parts.length - 1];
+                const uptimeStr = parts[parts.length - 2];
                 const bgpState = stateStr.startsWith('Establ') ? 'Established' : stateStr;
 
                 // Juniper summary "Active/Received/Accepted/Damped" in last col when Established
@@ -39,6 +40,7 @@ export class JuniperPoller extends BasePoller {
 
                 peers.push({
                     peerIp, remoteAsn, bgpState, acceptedPrefixes,
+                    uptime: bgpState === 'Established' ? parseBgpUptime(uptimeStr) : undefined,
                     advertisedPrefixes: sentMap.get(peerIp) ?? 0,
                     description: descMap.get(peerIp),
                 });
