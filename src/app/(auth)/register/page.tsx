@@ -2,17 +2,20 @@
 
 import { register } from '@/app/actions/auth';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
 export default function RegisterPage() {
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    const router = useRouter();
 
     async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault();
         setLoading(true);
         setError('');
         const result = await register(new FormData(e.currentTarget));
+        if (result?.success) { router.push('/'); router.refresh(); return; }
         if (result?.error) { setError(result.error); setLoading(false); }
     }
 

@@ -11,7 +11,6 @@ export async function login(formData: FormData) {
 
     if (!username || !password) return { error: 'Username and password required' };
 
-    // Find user — superadmin can log in without tenant slug
     const user = await (prisma as any).appUser.findFirst({
         where: { username },
         include: { tenant: { select: { id: true, slug: true, name: true } } }
@@ -30,7 +29,10 @@ export async function login(formData: FormData) {
     });
 
     await setSessionCookie(token);
-    redirect('/');
+    // Return success; client will navigate via router.push('/')
+    // Do NOT call redirect() here — Set-Cookie + redirect in server actions
+    // can fail behind reverse proxies (Traefik/nginx in Coolify)
+    return { success: true };
 }
 
 export async function logout() {
@@ -83,8 +85,9 @@ export async function register(formData: FormData) {
     });
 
     await setSessionCookie(token);
-    redirect('/');
+    return { success: true };
 }
+
 
 /** Create a new user within the current tenant (orgadmin only) */
 export async function createUser(formData: FormData) {
