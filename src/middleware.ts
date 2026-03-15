@@ -9,7 +9,7 @@ const JWT_SECRET = new TextEncoder().encode(
 const COOKIE_NAME = 'bgp_session';
 
 const PUBLIC_ROUTES = ['/login', '/register'];
-const PUBLIC_PREFIXES = ['/_next', '/favicon', '/api/public', '/api/debug-login'];
+const PUBLIC_PREFIXES = ['/_next', '/favicon', '/api/public', '/api/debug-login', '/api/auth'];
 
 export async function middleware(request: NextRequest) {
     const { pathname } = request.nextUrl;

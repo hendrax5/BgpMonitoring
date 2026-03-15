@@ -1,6 +1,5 @@
 'use client';
 
-import { login } from '@/app/actions/auth';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -15,15 +14,23 @@ export default function LoginPage() {
         setLoading(true);
         setError('');
         try {
-            const result = await login(new FormData(e.currentTarget));
+            const res = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    username: (e.currentTarget.elements.namedItem('username') as HTMLInputElement).value,
+                    password: (e.currentTarget.elements.namedItem('password') as HTMLInputElement).value,
+                }),
+            });
+            const result = await res.json();
             if (result?.success) {
                 router.push('/');
                 router.refresh();
                 return;
             }
-            if (result?.error) { setError(result.error); }
+            setError(result?.error || 'Login failed');
         } catch (err: any) {
-            setError(err?.message || 'Server error — check container logs');
+            setError(err?.message || 'Network error');
         }
         setLoading(false);
     }
