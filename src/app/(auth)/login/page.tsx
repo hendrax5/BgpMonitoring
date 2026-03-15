@@ -14,13 +14,18 @@ export default function LoginPage() {
         e.preventDefault();
         setLoading(true);
         setError('');
-        const result = await login(new FormData(e.currentTarget));
-        if (result?.success) {
-            router.push('/');
-            router.refresh();
-            return;
+        try {
+            const result = await login(new FormData(e.currentTarget));
+            if (result?.success) {
+                router.push('/');
+                router.refresh();
+                return;
+            }
+            if (result?.error) { setError(result.error); }
+        } catch (err: any) {
+            setError(err?.message || 'Server error — check container logs');
         }
-        if (result?.error) { setError(result.error); setLoading(false); }
+        setLoading(false);
     }
 
     return (
