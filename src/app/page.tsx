@@ -1,10 +1,12 @@
 import { logout } from '@/app/actions/auth';
+import { removeSession } from '@/app/actions/settings';
 import { requireSession } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { redis } from '@/lib/redis';
 import Link from 'next/link';
 import DashboardFilters from '@/app/components/DashboardFilters';
 import SortableHeader from '@/app/components/SortableHeader';
+import DeleteSessionButton from '@/app/components/DeleteSessionButton';
 
 export default async function Home({ searchParams }: { searchParams: Promise<{ device?: string; sort?: string; status?: string; search?: string }> }) {
   const session = await requireSession();
@@ -402,7 +404,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
                       <td>
                         <span className={isUp ? 'badge-established' : 'badge-down'}>
                           <span className="dot" style={{ backgroundColor: isUp ? '#10b981' : '#f43f5e' }}></span>
-                          {isUp ? 'Established' : s.bgpState}
+                          {isUp ? 'Established' : 'Down'}
                         </span>
                       </td>
                       <td title={`Since: ${s.stateChangedAt.toLocaleString()}`}>
@@ -417,12 +419,21 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
                         {s.acceptedPrefixes.toLocaleString()} / {(s.advertisedPrefixes ?? 0).toLocaleString()}
                       </td>
                       <td style={{ textAlign: 'right' }}>
-                        <Link href={`/peers/${encodeURIComponent(s.peerIp)}`}
-                          className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg"
-                          style={{ color: '#13a4ec', border: '1px solid rgba(19,164,236,0.3)' }}>
-                          <span className="material-symbols-outlined text-sm">open_in_new</span>
-                          Details
-                        </Link>
+                        <div className="flex items-center justify-end gap-2">
+                          <Link href={`/peers/${encodeURIComponent(s.peerIp)}`}
+                            className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg"
+                            style={{ color: '#13a4ec', border: '1px solid rgba(19,164,236,0.3)' }}>
+                            <span className="material-symbols-outlined text-sm">open_in_new</span>
+                            Details
+                          </Link>
+                          {!isUp && (
+                            <DeleteSessionButton
+                              serverName={s.serverName}
+                              deviceId={s.deviceId}
+                              peerIp={s.peerIp}
+                            />
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );

@@ -161,3 +161,33 @@ export async function saveTelegramSettings(formData: FormData) {
 
     revalidatePath('/settings');
 }
+
+/**
+ * Force-remove a specific BGP session from Redis.
+ * Used when a peer has been deleted from the router config but still appears
+ * in the dashboard because the worker hasn't polled yet or the router still
+ * briefly reports the peer in Idle/Active state.
+ */
+export async function removeSession(formData: FormData) {
+    const session = await requireSession();
+    const tenantId = session.tenantId;
+    const serverName = formData.get('serverName') as string;
+    const deviceId = formData.get('deviceId') as string;
+    const peerIp = formData.get('peerIp') as string;
+
+    if (!serverName || !deviceId || !peerIp) {
+        revalidatePath('/');
+        return;
+    }
+
+    // Find matching Redis key (wildcard then exact peerIp match)
+    const keysToCheck = await redis.keys(`BgpSession:${tenantId}:${serverName}:${deviceId}:*`);
+    const matchedKeys = keysToCheck.filter((k: string) => {
+        const kPeerIp = k.split(':').slice(4).join(':');
+        return kPeerIp === peerIp;
+    });
+    if (matchedKeys.length > 0) {
+        await redis.del(...matchedKeys);
+    }
+    revalidatePath('/');
+}
