@@ -23,11 +23,10 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
-ENV DATABASE_URL="file:///app/data/bgp_watcher.db"
 ENV NODE_PATH="/app/worker_deps/node_modules"
-
-# Pre-create the data directory and touch the db file so Prisma doesn't crash on initial boot before volume fills
-RUN mkdir -p /app/data && touch /app/data/bgp_watcher.db
+# NOTE: DATABASE_URL must be provided at runtime via docker-compose or Coolify env vars
+# Default fallback (overridden by docker-compose environment):
+ENV DATABASE_URL="postgresql://bgpmon:bgpmon_secret@postgres:5432/bgpmon"
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
