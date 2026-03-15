@@ -123,12 +123,14 @@ export class MikrotikPoller extends BasePoller {
             if (!ipMatch || !asnMatch || !stateMatch) continue;
 
             const state = stateMatch[1].toLowerCase();
+            // MikroTik v6: prefix-count = received, out-prefix-count = advertised (if available)
+            const sentPrefixMatch = block.match(/out-prefix-count=(\d+)/);
             peers.push({
                 peerIp: ipMatch[1],
                 remoteAsn: parseInt(asnMatch[1], 10),
                 bgpState: state === 'established' ? 'Established' : state,
                 acceptedPrefixes: prefixMatch ? parseInt(prefixMatch[1], 10) : 0,
-                advertisedPrefixes: 0,
+                advertisedPrefixes: sentPrefixMatch ? parseInt(sentPrefixMatch[1], 10) : 0,
                 description: nameMatch?.[1]?.trim() || undefined,
                 uptime: uptimeMatch ? parseBgpUptime(uptimeMatch[1]) : undefined,
             });

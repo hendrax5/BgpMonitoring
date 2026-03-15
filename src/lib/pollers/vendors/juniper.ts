@@ -8,14 +8,14 @@ export class JuniperPoller extends BasePoller {
         }
         const ssh = new SshPoller(this.device.ipAddress, this.device.sshCredential);
 
-        // Run both commands in parallel
+        // Run summary + full neighbor data (for Active prefixes + Advertised prefixes) in parallel
         const [summaryOutput, neighborOutput] = await Promise.all([
             ssh.exec('show bgp summary'),
-            ssh.exec('show bgp neighbor | match "(Peer:|Description:|Prefixes)"').catch(() => ''),
+            ssh.exec('show bgp neighbor | match "(Peer:|Active prefixes:|Advertised prefixes:|Description:)"').catch(() => ''),
         ]);
 
         const descMap = parseJuniperDescriptions(neighborOutput);
-        const sentMap = parseJuniperPrefixSent(neighborOutput);
+        const { activePfxMap, advPfxMap } = parseJuniperPrefixes(neighborOutput);
 
         const peers: BgpPeerState[] = [];
         let headerFound = false;
@@ -24,27 +24,43 @@ export class JuniperPoller extends BasePoller {
             if (line.includes('Peer') && line.includes('AS') && line.includes('State')) { headerFound = true; continue; }
             if (!headerFound) continue;
             const parts = line.trim().split(/\s+/);
-            // JunOS summary: IP  AS  InPkt  OutPkt  OutQ  Flaps Last    State|#Active/Received/Accepted/Damped...
+            // JunOS summary: Peer AS InPkt OutPkt OutQ Flaps [Last multiword] State|#Active/Received/Accepted/Damped
+            // Parts count varies because 'Last' can be "3d 4h" (2 tokens) or "00:10:30" (1 token)
             if (parts.length >= 8 && parts[0].match(/^[0-9a-fA-F:.]+$/)) {
                 const peerIp = parts[0];
                 const remoteAsn = parseInt(parts[1], 10);
+                // State column is always last
                 const stateStr = parts[parts.length - 1];
-                const bgpState = stateStr.startsWith('Establ') ? 'Established' : stateStr;
+                const bgpState = (stateStr.startsWith('Establ') || stateStr.match(/^\d+\/\d+/))
+                    ? 'Established'
+                    : stateStr;
 
-                // Juniper summary "Active/Received/Accepted/Damped" in last col when Established
-                // Format: 1/100/100/0 — Active/Received/Accepted/Damped
-                let acceptedPrefixes = 0;
-                const pfxMatch = stateStr.match(/\d+\/(\d+)\/(\d+)\//);
-                if (pfxMatch) acceptedPrefixes = parseInt(pfxMatch[2], 10); // Accepted col
+                // Uptime: 'Last' field is 1–2 tokens immediately before State col
+                // When Established, state col has format "Establ" or "1/5/5/0"
+                // 'Last' could be "3d4h", "00:10:30", "3d" or "3d 4h" (split tokens!)
+                // Try: combine parts[-3] + parts[-2] to handle two-token Last
+                let uptime: number | undefined;
+                if (bgpState === 'Established') {
+                    const lastSingle = parts[parts.length - 2] || '';
+                    const lastDouble = (parts[parts.length - 3] ?? '') + lastSingle;
+                    // Prefer combined if parseBgpUptime returns more seconds
+                    const t1 = parseBgpUptime(lastSingle);
+                    const t2 = parseBgpUptime(lastDouble);
+                    uptime = Math.max(t1, t2) || undefined;
+                }
 
-                // JunOS summary columns: Peer AS InPkt OutPkt OutQ Flaps Last State|#Pfx
-                // 'Last' (up/down duration) is at parts.length - 2 when Established, else parts.length - 2
-                const lastStr = parts[parts.length - 2] || '';
-                const uptime = bgpState === 'Established' ? (parseBgpUptime(lastStr) || undefined) : undefined;
+                // Accepted prefix count: from show bgp summary last col when Established (format: Active/Received/Accepted/Damped)
+                let acceptedPrefixes = activePfxMap.get(peerIp) ?? 0;
+                const pfxFractionMatch = stateStr.match(/(\d+)\/(\d+)\/(\d+)\//);
+                if (pfxFractionMatch && acceptedPrefixes === 0) {
+                    // Accepted is col[2] in Active/Received/Accepted/Damped
+                    acceptedPrefixes = parseInt(pfxFractionMatch[3], 10);
+                }
 
                 peers.push({
-                    peerIp, remoteAsn, bgpState, acceptedPrefixes,
-                    advertisedPrefixes: sentMap.get(peerIp) ?? 0,
+                    peerIp, remoteAsn, bgpState,
+                    acceptedPrefixes,
+                    advertisedPrefixes: advPfxMap.get(peerIp) ?? 0,
                     description: descMap.get(peerIp),
                     uptime,
                 });
@@ -63,6 +79,10 @@ export class JuniperPoller extends BasePoller {
     }
 }
 
+/**
+ * Extract peer descriptions from filtered 'show bgp neighbor' output.
+ * Lines captured: "Peer: x.x.x.x", "Description: ...", "Active prefixes:", "Advertised prefixes:"
+ */
 function parseJuniperDescriptions(output: string): Map<string, string> {
     const map = new Map<string, string>();
     let currentIp = '';
@@ -75,17 +95,34 @@ function parseJuniperDescriptions(output: string): Map<string, string> {
     return map;
 }
 
-function parseJuniperPrefixSent(output: string): Map<string, number> {
-    const map = new Map<string, number>();
+/**
+ * Extract active (received) and advertised prefix counts from
+ * 'show bgp neighbor | match "(Peer:|Active prefixes:|Advertised prefixes:)"' output.
+ *
+ * JunOS output lines look like:
+ *   Peer: 10.0.0.1         AS 65001   ...
+ *   Active prefixes:              100
+ *   Advertised prefixes:           50
+ */
+function parseJuniperPrefixes(output: string): {
+    activePfxMap: Map<string, number>;
+    advPfxMap: Map<string, number>;
+} {
+    const activePfxMap = new Map<string, number>();
+    const advPfxMap = new Map<string, number>();
     let currentIp = '';
     for (const line of output.split('\n')) {
         const peerMatch = line.match(/Peer:\s+([\d.a-fA-F:]+)/);
-        if (peerMatch) currentIp = peerMatch[1];
-        // "  Prefixes: 100 (advertised 50)"  or  "Exported: 50"
-        const advMatch = line.match(/advertised\s+(\d+)/i) || line.match(/Exported:\s+(\d+)/i);
-        if (advMatch && currentIp) map.set(currentIp, parseInt(advMatch[1], 10));
+        if (peerMatch) { currentIp = peerMatch[1]; continue; }
+        if (!currentIp) continue;
+        // "  Active prefixes:              100"
+        const activeMatch = line.match(/Active prefixes:\s+(\d+)/i);
+        if (activeMatch) activePfxMap.set(currentIp, parseInt(activeMatch[1], 10));
+        // "  Advertised prefixes:           50"
+        const advMatch = line.match(/Advertised prefixes:\s+(\d+)/i);
+        if (advMatch) advPfxMap.set(currentIp, parseInt(advMatch[1], 10));
     }
-    return map;
+    return { activePfxMap, advPfxMap };
 }
 
 function parseJuniperLog(output: string): BgpEventLog[] {

@@ -1,4 +1,4 @@
-import { BasePoller, BgpPeerState, BgpEventLog } from '../base';
+import { BasePoller, BgpPeerState, BgpEventLog, parseBgpUptime } from '../base';
 import { SshPoller } from '../ssh';
 import { parseFrrDescriptions, parseFrrPrefixSent, parseFrrLog } from './danos';
 
@@ -28,13 +28,17 @@ export class VyosPoller extends BasePoller {
                 const peerIp = parts[0];
                 const remoteAsn = parseInt(parts[2], 10);
                 const stateOrPfx = parts[parts.length - 1];
+                // FRR: Neighbor V AS MsgRcvd MsgSent TblVer InQ OutQ Up/Down State/PfxRcd
+                const upDownStr = parts[8] || '';
                 let bgpState = 'Idle', acceptedPrefixes = 0;
                 if (/^\d+$/.test(stateOrPfx)) { bgpState = 'Established'; acceptedPrefixes = parseInt(stateOrPfx, 10); }
                 else { bgpState = stateOrPfx; }
+                const uptime = bgpState === 'Established' ? (parseBgpUptime(upDownStr) || undefined) : undefined;
                 peers.push({
                     peerIp, remoteAsn, bgpState, acceptedPrefixes,
                     advertisedPrefixes: sentMap.get(peerIp) ?? 0,
                     description: descMap.get(peerIp),
+                    uptime,
                 });
             }
         }
