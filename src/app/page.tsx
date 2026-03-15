@@ -16,15 +16,18 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
 
   // Superadmin: see ALL tenants' sessions; regular user: only their tenant
   const redisPattern = isSuperAdmin ? 'BgpSession:*' : `BgpSession:${session.tenantId}:*`;
-  const allRedisKeys = await redis.keys(redisPattern);
+  const allRedisKeys = await redis.keys(redisPattern).catch(() => [] as string[]);
   let allSessionsRaw: any[] = [];
   
   if (allRedisKeys.length > 0) {
-      const pipeline = redis.pipeline();
-      allRedisKeys.forEach(k => pipeline.hget(k, 'data'));
-      const results = await pipeline.exec();
-      allSessionsRaw = results?.map(([err, res]) => res ? JSON.parse(res as string) : null).filter(Boolean) || [];
+      try {
+        const pipeline = redis.pipeline();
+        allRedisKeys.forEach(k => pipeline.hget(k, 'data'));
+        const results = await pipeline.exec();
+        allSessionsRaw = results?.map(([err, res]) => res ? JSON.parse(res as string) : null).filter(Boolean) || [];
+      } catch { /* Redis unavailable — show empty sessions */ }
   }
+
 
   const deviceFilter = device && device !== 'all' ? device : null;
   const filteredSessionsByDevice = deviceFilter ? allSessionsRaw.filter(s => s.deviceName === deviceFilter) : allSessionsRaw;

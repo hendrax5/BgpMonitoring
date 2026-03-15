@@ -4,20 +4,23 @@ const globalForRedis = globalThis as unknown as {
     redis: Redis | undefined;
 };
 
-// Check if REDIS_URL is configured, otherwise fallback to local dev
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 
 function createRedisClient(): Redis {
     const client = new Redis(REDIS_URL, {
-        maxRetriesPerRequest: null,
+        // CRITICAL: null means retry forever → app hangs. Use 3 retries max.
+        maxRetriesPerRequest: 3,
         enableReadyCheck: false,
+        // lazyConnect: don't block on startup, connect on first command
+        lazyConnect: true,
+        connectTimeout: 5000,
+        commandTimeout: 5000,
         retryStrategy: (times) => {
-            if (times > 5) return null;
-            return Math.min(times * 500, 10000);
+            if (times > 5) return null; // stop retrying after 5 attempts
+            return Math.min(times * 500, 3000);
         },
     });
 
-    // IMPORTANT: Catch connection errors so the app doesn't crash
     client.on('error', (err) => {
         console.error('[Redis] Connection error (app will continue without cache):', err.message);
     });
@@ -31,5 +34,5 @@ function createRedisClient(): Redis {
 
 export const redis = globalForRedis.redis ?? createRedisClient();
 
-// Persist the instance on hot-reloading in dev.
 if (process.env.NODE_ENV !== 'production') globalForRedis.redis = redis;
+
