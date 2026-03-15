@@ -284,8 +284,6 @@ async function pollTenant(tenantId: string, tenantSlug: string) {
 
                 if (!existingState) {
                     await redis.hset(redisKey, 'data', JSON.stringify(currentStateObj));
-                    // New session that starts Down: auto-expire after 24h if not recovering
-                    if (!isUp) await redis.expire(redisKey, 86400);
                     continue;
                 }
 
@@ -351,15 +349,6 @@ async function pollTenant(tenantId: string, tenantSlug: string) {
                 }
 
                 await redis.hset(redisKey, 'data', JSON.stringify(currentStateObj));
-                // TTL management:
-                // - Established: remove TTL (keep indefinitely)
-                // - Down: set/refresh TTL to 24h so stale down sessions auto-expire
-                const DOWN_TTL_SECONDS = 24 * 60 * 60; // 24 hours
-                if (isUp) {
-                    await redis.persist(redisKey);  // remove any existing TTL
-                } else {
-                    await redis.expire(redisKey, DOWN_TTL_SECONDS);
-                }
             } catch (err: any) {
                 console.error(`❌ Redis/DB error while processing session for ${session.deviceName} (${session.peerIp}):`, err.message);
             }
