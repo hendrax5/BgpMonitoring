@@ -1,4 +1,4 @@
-import { BasePoller, BgpPeerState, BgpEventLog } from '../base';
+import { BasePoller, BgpPeerState, BgpEventLog, parseBgpUptime } from '../base';
 import { SshPoller } from '../ssh';
 
 export class JuniperPoller extends BasePoller {
@@ -37,10 +37,16 @@ export class JuniperPoller extends BasePoller {
                 const pfxMatch = stateStr.match(/\d+\/(\d+)\/(\d+)\//);
                 if (pfxMatch) acceptedPrefixes = parseInt(pfxMatch[2], 10); // Accepted col
 
+                // JunOS summary columns: Peer AS InPkt OutPkt OutQ Flaps Last State|#Pfx
+                // 'Last' (up/down duration) is at parts.length - 2 when Established, else parts.length - 2
+                const lastStr = parts[parts.length - 2] || '';
+                const uptime = bgpState === 'Established' ? (parseBgpUptime(lastStr) || undefined) : undefined;
+
                 peers.push({
                     peerIp, remoteAsn, bgpState, acceptedPrefixes,
                     advertisedPrefixes: sentMap.get(peerIp) ?? 0,
                     description: descMap.get(peerIp),
+                    uptime,
                 });
             }
         }

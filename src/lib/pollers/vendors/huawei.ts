@@ -1,4 +1,4 @@
-import { BasePoller, BgpPeerState, BgpEventLog } from '../base';
+import { BasePoller, BgpPeerState, BgpEventLog, parseBgpUptime } from '../base';
 import { SshPoller } from '../ssh';
 
 export class HuaweiPoller extends BasePoller {
@@ -28,14 +28,19 @@ export class HuaweiPoller extends BasePoller {
             if (parts.length >= 8 && /^[\d.]+$/.test(parts[0])) {
                 const peerIp = parts[0];
                 const remoteAsn = parseInt(parts[2], 10);
+                // Huawei: IP  V  AS  MsgRcvd  MsgSent  OutQ  Up/Down  State  PrefRcv
+                //          0  1   2       3         4    5        6       7       8
+                const upDownStr = parts[6] || '';
                 const stateStr = parts[parts.length - 2];
                 const prefixesStr = parts[parts.length - 1];
                 const bgpState = stateStr.toLowerCase() === 'established' ? 'Established' : stateStr;
                 const acceptedPrefixes = bgpState === 'Established' ? (parseInt(prefixesStr, 10) || 0) : 0;
+                const uptime = bgpState === 'Established' ? (parseBgpUptime(upDownStr) || undefined) : undefined;
                 peers.push({
                     peerIp, remoteAsn, bgpState, acceptedPrefixes,
                     advertisedPrefixes: sentMap.get(peerIp) ?? 0,
                     description: descMap.get(peerIp),
+                    uptime,
                 });
             }
         }

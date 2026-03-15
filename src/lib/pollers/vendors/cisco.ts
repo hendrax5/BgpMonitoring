@@ -1,4 +1,4 @@
-import { BasePoller, BgpPeerState, BgpEventLog } from '../base';
+import { BasePoller, BgpPeerState, BgpEventLog, parseBgpUptime } from '../base';
 import { SshPoller } from '../ssh';
 
 export class CiscoPoller extends BasePoller {
@@ -37,7 +37,7 @@ export class CiscoPoller extends BasePoller {
                     peerIp, remoteAsn, bgpState, acceptedPrefixes,
                     advertisedPrefixes: sentMap.get(peerIp) ?? 0,
                     description: descMap.get(peerIp),
-                    uptime: parseCiscoUpdown(upDownStr),
+                    uptime: parseBgpUptime(upDownStr) || undefined,
                 });
             }
         }
@@ -82,20 +82,7 @@ function parseCiscoPrefixSent(output: string): Map<string, number> {
     return map;
 }
 
-/** Parse Cisco Up/Down column (e.g. "00:10:30", "2d10h", "1w2d", "never") to seconds */
-function parseCiscoUpdown(s: string): number | undefined {
-    if (!s || s === 'never') return undefined;
-    // hh:mm:ss or h:mm:ss
-    const hms = s.match(/^(\d+):(\d{2}):(\d{2})$/);
-    if (hms) return parseInt(hms[1]) * 3600 + parseInt(hms[2]) * 60 + parseInt(hms[3]);
-    // Xwk Xd or Xd Xh
-    let secs = 0;
-    const w = s.match(/(\d+)w/); if (w) secs += parseInt(w[1]) * 604800;
-    const d = s.match(/(\d+)d/); if (d) secs += parseInt(d[1]) * 86400;
-    const h = s.match(/(\d+)h/); if (h) secs += parseInt(h[1]) * 3600;
-    const m = s.match(/(\d+)m/); if (m) secs += parseInt(m[1]) * 60;
-    return secs > 0 ? secs : undefined;
-}
+// parseCiscoUpdown replaced by unified parseBgpUptime from base.ts
 
 export function parseSyslogBgp(output: string): BgpEventLog[] {
     const events: BgpEventLog[] = [];

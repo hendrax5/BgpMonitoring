@@ -228,10 +228,37 @@ async function pollTenant(tenantId: string, tenantSlug: string) {
                 const existingStateStr = await redis.hget(redisKey, 'data');
                 const existingState = existingStateStr ? JSON.parse(existingStateStr) : null;
 
+                // === Uptime-Derived stateChangedAt ===
+                // If router provides uptime, compute the exact time the session went Established:
+                //   stateChangedAt = now - uptimeSeconds
+                // If not established or no uptime: keep existing or use now.
+                const now = Date.now();
+                let computedStateChangedAt: string;
+                if (isUp && session.uptimeSeconds != null && session.uptimeSeconds > 0) {
+                    computedStateChangedAt = new Date(now - session.uptimeSeconds * 1000).toISOString();
+                } else if (existingState?.stateChangedAt) {
+                    computedStateChangedAt = existingState.stateChangedAt;
+                } else {
+                    computedStateChangedAt = new Date(now).toISOString();
+                }
+
+                // === 120s Drift Protection ===
+                // Avoid writing stateChangedAt when difference is within 120s of existing value
+                // (SSH/SNMP latency can cause minor timing variations every poll cycle).
+                const DRIFT_THRESHOLD_MS = 120 * 1000;
+                if (existingState?.stateChangedAt && isUp) {
+                    const existingMs = new Date(existingState.stateChangedAt).getTime();
+                    const delta = Math.abs(new Date(computedStateChangedAt).getTime() - existingMs);
+                    if (delta < DRIFT_THRESHOLD_MS) {
+                        // Within drift window: keep existing stateChangedAt to avoid constant DB churn
+                        computedStateChangedAt = existingState.stateChangedAt;
+                    }
+                }
+
                 const currentStateObj = {
                     ...session,
-                    stateChangedAt: existingState?.stateChangedAt || new Date().toISOString(),
-                    lastUpdated: new Date().toISOString(),
+                    stateChangedAt: computedStateChangedAt,
+                    lastUpdated: new Date(now).toISOString(),
                 };
 
                 if (!existingState) {
@@ -242,7 +269,7 @@ async function pollTenant(tenantId: string, tenantSlug: string) {
                 const wasUp = existingState.bgpState === 'Established';
 
                 if (wasUp && !isUp) {
-                    // UP -> DOWN
+                    // UP → DOWN: record event and reset stateChangedAt to now
                     await (prisma as any).historicalEvent.create({
                         data: {
                             tenantId,

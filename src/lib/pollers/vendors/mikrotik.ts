@@ -1,4 +1,4 @@
-import { BasePoller, BgpPeerState, BgpEventLog } from '../base';
+import { BasePoller, BgpPeerState, BgpEventLog, parseBgpUptime } from '../base';
 import { SshPoller } from '../ssh';
 
 export class MikrotikPoller extends BasePoller {
@@ -80,9 +80,9 @@ export class MikrotikPoller extends BasePoller {
                 bgpState = s === 'established' ? 'Established' : s;
             }
 
-            // uptime: "1d2h30m" or "2h10m" or "45m30s"
-            const uptimeMatch = flat.match(/uptime=([\w]+)/);
-            const uptimeSec = uptimeMatch ? parseMikrotikUptime(uptimeMatch[1]) : undefined;
+            // uptime: "1d2h30m" or "2h10m" or "45m30s" → use unified parser
+            const uptimeMatch = flat.match(/uptime=([\w:.]+)/);
+            const uptimeSec = uptimeMatch ? parseBgpUptime(uptimeMatch[1]) : undefined;
 
             // Skip if ASN parse failed
             if (isNaN(rawAsn)) continue;
@@ -118,7 +118,7 @@ export class MikrotikPoller extends BasePoller {
             const stateMatch = block.match(/state=([a-zA-Z-]+)/i);
             const nameMatch = block.match(/name="?([^"\n\s]+)"?/);
             const prefixMatch = block.match(/prefix-count=(\d+)/);
-            const uptimeMatch = block.match(/uptime=([\w]+)/);
+            const uptimeMatch = block.match(/uptime=([\w:.]+)/);
 
             if (!ipMatch || !asnMatch || !stateMatch) continue;
 
@@ -130,7 +130,7 @@ export class MikrotikPoller extends BasePoller {
                 acceptedPrefixes: prefixMatch ? parseInt(prefixMatch[1], 10) : 0,
                 advertisedPrefixes: 0,
                 description: nameMatch?.[1]?.trim() || undefined,
-                uptime: uptimeMatch ? parseMikrotikUptime(uptimeMatch[1]) : undefined,
+                uptime: uptimeMatch ? parseBgpUptime(uptimeMatch[1]) : undefined,
             });
         }
         return peers;
@@ -148,21 +148,7 @@ export class MikrotikPoller extends BasePoller {
     }
 }
 
-/** Convert MikroTik uptime string (e.g. "1d2h30m10s", "2h5m", "45m") to seconds */
-function parseMikrotikUptime(uptime: string): number {
-    let seconds = 0;
-    const weeks = uptime.match(/(\d+)w/);
-    const days = uptime.match(/(\d+)d/);
-    const hours = uptime.match(/(\d+)h/);
-    const mins = uptime.match(/(\d+)m/);
-    const secs = uptime.match(/(\d+)s/);
-    if (weeks) seconds += parseInt(weeks[1]) * 604800;
-    if (days) seconds += parseInt(days[1]) * 86400;
-    if (hours) seconds += parseInt(hours[1]) * 3600;
-    if (mins) seconds += parseInt(mins[1]) * 60;
-    if (secs) seconds += parseInt(secs[1]);
-    return seconds;
-}
+// parseMikrotikUptime replaced by the unified parseBgpUptime from base.ts
 
 function parseMikrotikLog(output: string): BgpEventLog[] {
     const events: BgpEventLog[] = [];
