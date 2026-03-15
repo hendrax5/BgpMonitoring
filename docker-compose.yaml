@@ -9,12 +9,34 @@ services:
       - "3000:3000"
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=file:///app/data/bgp_watcher.db
+      - DATABASE_URL=postgresql://bgpmon:bgpmon_secret@postgres:5432/bgpmon
       - REDIS_URL=redis://redis:6379
-    volumes:
-      - db_data:/app/data
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
+      - JWT_SECRET=${JWT_SECRET:-change_this_to_a_very_long_random_secret_key}
+      - SUPERADMIN_USERNAME=${SUPERADMIN_USERNAME:-superadmin}
+      - SUPERADMIN_PASSWORD=${SUPERADMIN_PASSWORD:-superadmin123}
     depends_on:
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: librenms_postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=bgpmon
+      - POSTGRES_PASSWORD=bgpmon_secret
+      - POSTGRES_DB=bgpmon
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bgpmon -d bgpmon"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:alpine
@@ -24,5 +46,5 @@ services:
       - redis_data:/data
 
 volumes:
-  db_data:
+  pg_data:
   redis_data:
