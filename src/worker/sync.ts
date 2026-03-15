@@ -202,6 +202,27 @@ async function pollTenant(tenantId: string, tenantSlug: string) {
             continue;
         }
 
+        // --- Per-device stale peer cleanup ---
+        // After a successful poll, remove Redis entries for peers no longer reported by this router.
+        // This handles: BGP neighbor removed from router config, or peer entry manually deleted.
+        try {
+            // Key format: BgpSession:{tenantId}:{serverName}:{deviceId}:{peerIp}
+            const deviceKeyPattern = `BgpSession:${tenantId}:${device.hostname}:${device.id}:*`;
+            const existingPeerKeys = await redis.keys(deviceKeyPattern);
+            // Build set of peerIps currently reported by router
+            const activePeerIps = new Set(activeSessions.map(p => p.peerIp));
+            const staleKeys = existingPeerKeys.filter((k: string) => {
+                const peerIp = k.split(':').slice(4).join(':'); // handles IPv6 which has colons
+                return !activePeerIps.has(peerIp);
+            });
+            if (staleKeys.length > 0) {
+                await redis.del(...staleKeys);
+                console.log(`🗑️ [${device.hostname}] Removed ${staleKeys.length} stale peer(s) from Redis: ${staleKeys.map((k: string) => k.split(':').slice(4).join(':')).join(', ')}`);
+            }
+        } catch (err) {
+            console.error(`⚠️ [${device.hostname}] Failed to clean stale peer keys`, err);
+        }
+
         for (const peer of activeSessions) {
             const isUp = peer.bgpState === 'Established';
             const orgName = await lookupAsnName(BigInt(peer.remoteAsn));
