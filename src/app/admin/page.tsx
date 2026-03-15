@@ -2,33 +2,81 @@ import { requireSession } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { redis } from '@/lib/redis';
 import { redirect } from 'next/navigation';
+import { revalidatePath } from 'next/cache';
 import Link from 'next/link';
+
+async function createTenant(formData: FormData) {
+    'use server';
+    const session = await requireSession();
+    if (session.role !== 'superadmin') return;
+
+    const name = (formData.get('name') as string)?.trim();
+    const adminUsername = (formData.get('adminUsername') as string)?.trim();
+    const adminPassword = (formData.get('adminPassword') as string)?.trim();
+    const plan = (formData.get('plan') as string) || 'standard';
+
+    if (!name || !adminUsername || !adminPassword) return;
+
+    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    const existing = await (prisma as any).tenant.findUnique({ where: { slug } });
+    if (existing) return; // slug already taken
+
+    const bcrypt = await import('bcryptjs');
+    const hashedPassword = await bcrypt.hash(adminPassword, 12);
+
+    await (prisma as any).tenant.create({
+        data: {
+            name,
+            slug,
+            plan,
+            users: {
+                create: {
+                    username: adminUsername,
+                    password: hashedPassword,
+                    role: 'orgadmin',
+                }
+            }
+        }
+    });
+    revalidatePath('/admin');
+}
+
+async function deleteTenant(formData: FormData) {
+    'use server';
+    const session = await requireSession();
+    if (session.role !== 'superadmin') return;
+
+    const tenantId = formData.get('tenantId') as string;
+    if (!tenantId) return;
+
+    // Delete all Redis sessions for this tenant
+    const keys = await redis.keys(`BgpSession:${tenantId}:*`).catch(() => [] as string[]);
+    if (keys.length > 0) await redis.del(...keys);
+
+    // Delete tenant (cascades: users, devices, sessions, events)
+    await (prisma as any).tenant.delete({ where: { id: tenantId } });
+    revalidatePath('/admin');
+}
 
 export default async function AdminPage() {
     const session = await requireSession();
     if (session.role !== 'superadmin') redirect('/');
 
-    // --- All tenants
     const tenants = await (prisma as any).tenant.findMany({
-        include: {
-            _count: { select: { users: true, devices: true } }
-        },
+        include: { _count: { select: { users: true, devices: true } } },
         orderBy: { createdAt: 'asc' }
     });
 
-    // --- Live sessions per tenant from Redis
-    const allKeys: string[] = await redis.keys('BgpSession:*');
+    const allKeys: string[] = await redis.keys('BgpSession:*').catch(() => []);
     const tenantSessionCounts: Record<string, { total: number; down: number }> = {};
     if (allKeys.length > 0) {
         const pipeline = redis.pipeline();
         allKeys.forEach((k: string) => pipeline.hget(k, 'data'));
-        const results = await pipeline.exec();
+        const results = await pipeline.exec().catch(() => null);
         results?.forEach(([err, val]: any, idx: number) => {
             if (!val) return;
             const s = JSON.parse(val as string);
-            // Key format: BgpSession:{tenantId}:{hostname}:{deviceId}:{peerIp}
-            const parts = allKeys[idx].split(':');
-            const tenantId = parts[1];
+            const tenantId = allKeys[idx].split(':')[1];
             if (!tenantId) return;
             if (!tenantSessionCounts[tenantId]) tenantSessionCounts[tenantId] = { total: 0, down: 0 };
             tenantSessionCounts[tenantId].total++;
@@ -53,7 +101,7 @@ export default async function AdminPage() {
             </header>
 
             <main className="p-6 space-y-6">
-                {/* Summary cards */}
+                {/* Summary */}
                 <div className="grid grid-cols-3 gap-4">
                     <div className="card p-5">
                         <p className="text-xs mb-1" style={{ color: '#64748b' }}>Total Tenants</p>
@@ -73,10 +121,56 @@ export default async function AdminPage() {
                     </div>
                 </div>
 
-                {/* Tenant table */}
+                {/* Create Tenant */}
+                <div className="card p-6">
+                    <h3 className="font-bold text-white mb-1">Tambah Tenant Baru</h3>
+                    <p className="text-xs mb-5" style={{ color: '#64748b' }}>
+                        Buat tenant baru beserta akun orgadmin-nya.
+                    </p>
+                    <form action={createTenant} className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-xs font-bold uppercase tracking-widest mb-1.5" style={{ color: '#64748b' }}>
+                                Organization Name
+                            </label>
+                            <input type="text" name="name" required placeholder="PT Mitra Network" className="form-input w-full" />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold uppercase tracking-widest mb-1.5" style={{ color: '#64748b' }}>
+                                Plan
+                            </label>
+                            <select name="plan" className="form-input w-full">
+                                <option value="standard">Standard</option>
+                                <option value="professional">Professional</option>
+                                <option value="enterprise">Enterprise</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold uppercase tracking-widest mb-1.5" style={{ color: '#64748b' }}>
+                                Admin Username
+                            </label>
+                            <input type="text" name="adminUsername" required placeholder="admin" className="form-input w-full" />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold uppercase tracking-widest mb-1.5" style={{ color: '#64748b' }}>
+                                Admin Password
+                            </label>
+                            <input type="password" name="adminPassword" required minLength={8} placeholder="Min 8 chars" className="form-input w-full" />
+                        </div>
+                        <div className="col-span-2 pt-2 border-t" style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
+                            <button type="submit"
+                                className="px-6 py-2.5 rounded-xl font-bold text-white"
+                                style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}>
+                                <span className="material-symbols-outlined text-sm align-middle mr-1">add_circle</span>
+                                Create Tenant
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                {/* Tenant list */}
                 <div className="card overflow-hidden">
                     <div className="px-5 py-4 border-b" style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
-                        <h3 className="font-bold text-white">Tenants</h3>
+                        <h3 className="font-bold text-white">Tenants ({tenants.length})</h3>
                     </div>
                     <div className="overflow-x-auto">
                         <table className="w-full data-table">
@@ -89,6 +183,7 @@ export default async function AdminPage() {
                                     <th>BGP Sessions</th>
                                     <th>DOWN</th>
                                     <th>Joined</th>
+                                    <th>Action</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -122,6 +217,19 @@ export default async function AdminPage() {
                                                 <span className="text-xs" style={{ color: '#475569' }}>
                                                     {new Date(t.createdAt).toLocaleDateString('id-ID')}
                                                 </span>
+                                            </td>
+                                            <td>
+                                                {t.slug !== 'platform-admin' && (
+                                                    <form action={deleteTenant}
+                                                        onSubmit={(e) => { if (!confirm(`Hapus tenant "${t.name}"? Semua data akan terhapus.`)) e.preventDefault(); }}>
+                                                        <input type="hidden" name="tenantId" value={t.id} />
+                                                        <button type="submit"
+                                                            className="text-xs px-2.5 py-1 rounded-lg"
+                                                            style={{ color: '#f43f5e', border: '1px solid rgba(244,63,94,0.3)' }}>
+                                                            Hapus
+                                                        </button>
+                                                    </form>
+                                                )}
                                             </td>
                                         </tr>
                                     );
