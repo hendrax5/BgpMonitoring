@@ -58,13 +58,13 @@ export async function GET(
             return NextResponse.json({ error: `Unsupported vendor: ${device.vendor}`, events: [] });
         }
 
-        const events = await poller.fetchBgpLog();
+        const liveOutput = await poller.fetchLiveSessions();
 
         return NextResponse.json({
             deviceName: device.hostname,
             deviceIp: device.ipAddress,
             vendor: device.vendor,
-            events,
+            output: liveOutput,
         });
     } catch (err: any) {
         return NextResponse.json({ error: err.message, events: [] }, { status: 500 });

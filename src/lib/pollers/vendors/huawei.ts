@@ -54,6 +54,16 @@ export class HuaweiPoller extends BasePoller {
             return parseHuaweiLog(output);
         } catch { return []; }
     }
+
+    override async fetchLiveSessions(): Promise<string> {
+        if (!this.device.sshCredential) return 'Error: No SSH Credentials';
+        try {
+            const ssh = new SshPoller(this.device.ipAddress, this.device.sshCredential);
+            return await ssh.exec('display bgp peer');
+        } catch (err: any) {
+            return `Error fetching live sessions: ${err.message}`;
+        }
+    }
 }
 
 function parseHuaweiDescriptions(output: string): Map<string, string> {

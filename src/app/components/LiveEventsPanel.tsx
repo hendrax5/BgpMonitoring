@@ -2,13 +2,12 @@
 
 import { useState, useEffect } from 'react';
 
-type BgpEventLog = {
-    timestamp: string;
-    peerIp: string;
-    eventType: 'UP' | 'DOWN' | 'INFO';
-    message: string;
-    deviceName?: string;
-    deviceId?: number;
+type LiveSessionOutput = {
+    deviceName: string;
+    deviceId: number;
+    vendor: string;
+    output?: string;
+    message?: string; // fallback
 };
 
 type Props = {
@@ -19,7 +18,7 @@ export default function LiveEventsPanel({ devices }: Props) {
     // null = All Devices (default), number = specific deviceId
     const [selectedDeviceId, setSelectedDeviceId] = useState<number | null>(null);
     const [loading, setLoading] = useState(false);
-    const [events, setEvents] = useState<BgpEventLog[]>([]);
+    const [events, setEvents] = useState<LiveSessionOutput[]>([]);
     const [lastFetched, setLastFetched] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
 
@@ -39,7 +38,7 @@ export default function LiveEventsPanel({ devices }: Props) {
             } else {
                 // Single device: add deviceName from local devices list
                 const device = devices.find(d => d.id === deviceId);
-                const evs = (json.events || []).map((e: BgpEventLog) => ({
+                const evs = (json.events || []).map((e: LiveSessionOutput) => ({
                     ...e,
                     deviceName: device?.hostname || '',
                 }));
@@ -123,70 +122,40 @@ export default function LiveEventsPanel({ devices }: Props) {
                             hourglass_empty
                         </span>
                         <p className="text-xs" style={{ color: '#475569' }}>
-                            {selectedDeviceId === null ? 'Fetching logs from all devices...' : 'Fetching logs...'}
+                            {selectedDeviceId === null ? 'Fetching live BGP status from all devices...' : 'Fetching live BGP status...'}
                         </p>
                     </div>
                 ) : error && displayed.length === 0 ? (
                     <div className="p-5 flex items-center gap-3">
                         <span className="material-symbols-outlined text-lg" style={{ color: '#f59e0b' }}>warning</span>
                         <div>
-                            <p className="text-xs font-medium text-white">Cannot fetch SSH logs</p>
+                            <p className="text-xs font-medium text-white">Cannot fetch SSH live sessions</p>
                             <p className="text-[10px] mt-0.5" style={{ color: '#64748b' }}>{error}</p>
                         </div>
                     </div>
                 ) : displayed.length === 0 ? (
                     <div className="p-6 text-center">
                         <span className="material-symbols-outlined text-3xl block mb-2" style={{ color: '#334155' }}>info</span>
-                        <p className="text-sm text-white mb-1">No recent BGP log entries</p>
+                        <p className="text-sm text-white mb-1">No live session data</p>
                         <p className="text-xs" style={{ color: '#475569' }}>
-                            Devices may not have recent BGP events or SSH credentials not configured.
+                            Select a device to test its live SSH connection.
                         </p>
                     </div>
                 ) : (
-                    displayed.slice().reverse().map((event, i) => (
-                        <div key={i} className="px-4 py-2.5 flex items-start gap-3 hover:bg-white/[0.02] transition-colors">
-                            <div className="flex-shrink-0 mt-1">
-                                <span
-                                    className="w-2 h-2 rounded-full inline-block"
-                                    style={{
-                                        backgroundColor:
-                                            event.eventType === 'UP' ? '#10b981' :
-                                            event.eventType === 'DOWN' ? '#f43f5e' : '#64748b'
-                                    }}
-                                />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                                    {/* Show device name when in "All" view */}
-                                    {selectedDeviceId === null && event.deviceName && (
-                                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
-                                            style={{ backgroundColor: 'rgba(19,164,236,0.1)', color: '#13a4ec' }}>
-                                            {event.deviceName}
-                                        </span>
-                                    )}
-                                    {event.peerIp && (
-                                        <code className="text-[10px] font-mono" style={{ color: '#94a3b8' }}>{event.peerIp}</code>
-                                    )}
-                                    <span
-                                        className="text-[9px] px-1.5 py-0.5 rounded font-bold uppercase"
-                                        style={{
-                                            backgroundColor:
-                                                event.eventType === 'UP' ? 'rgba(16,185,129,0.15)' :
-                                                event.eventType === 'DOWN' ? 'rgba(244,63,94,0.15)' : 'rgba(255,255,255,0.06)',
-                                            color:
-                                                event.eventType === 'UP' ? '#10b981' :
-                                                event.eventType === 'DOWN' ? '#f43f5e' : '#64748b',
-                                        }}
-                                    >
-                                        {event.eventType}
+                    <div className="p-4 space-y-6">
+                        {displayed.map((event, i) => (
+                            <div key={i}>
+                                <div className="flex items-center gap-2 mb-2">
+                                    <span className="px-2 py-0.5 rounded text-[11px] font-bold" style={{ backgroundColor: '#1e293b', color: '#e2e8f0', border: '1px solid #334155' }}>
+                                        {event.deviceName} <span style={{ color: '#64748b' }}>({event.vendor})</span>
                                     </span>
                                 </div>
-                                <p className="text-[11px]" style={{ color: '#94a3b8' }} title={event.message}>
-                                    {event.message}
-                                </p>
+                                <pre className="text-[11px] font-mono whitespace-pre-wrap overflow-x-auto p-3 rounded" style={{ backgroundColor: '#0f172a', color: '#94a3b8', border: '1px solid rgba(255,255,255,0.05)', maxHeight: '400px', overflowY: 'auto' }}>
+                                    {event.output || event.message || "No output returned"}
+                                </pre>
                             </div>
-                        </div>
-                    ))
+                        ))}
+                    </div>
                 )}
             </div>
         </div>

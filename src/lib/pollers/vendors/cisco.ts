@@ -53,6 +53,16 @@ export class CiscoPoller extends BasePoller {
             return parseSyslogBgp(output);
         } catch { return []; }
     }
+
+    override async fetchLiveSessions(): Promise<string> {
+        if (!this.device.sshCredential) return 'Error: No SSH Credentials';
+        try {
+            const ssh = new SshPoller(this.device.ipAddress, this.device.sshCredential);
+            return await ssh.exec('show bgp ipv4 unicast summary');
+        } catch (err: any) {
+            return `Error fetching live sessions: ${err.message}`;
+        }
+    }
 }
 
 /** Parse `BGP neighbor is X.X.X.X ... Description: FOO` blocks */

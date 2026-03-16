@@ -148,6 +148,22 @@ export class MikrotikPoller extends BasePoller {
             return [];
         }
     }
+
+    override async fetchLiveSessions(): Promise<string> {
+        if (!this.device.sshCredential) return 'Error: No SSH Credentials';
+        try {
+            const ssh = new SshPoller(this.device.ipAddress, this.device.sshCredential);
+            try {
+                // Try RouterOS v7 command first
+                const out = await ssh.exec('/routing/bgp/session/print detail without-paging');
+                if (out.includes('remote.address') || out.includes('remote.as')) return out;
+            } catch {}
+            // Fallback to RouterOS v6 command
+            return await ssh.exec('/routing bgp peer print detail without-paging');
+        } catch (err: any) {
+            return `Error fetching live sessions: ${err.message}`;
+        }
+    }
 }
 
 // parseMikrotikUptime replaced by the unified parseBgpUptime from base.ts

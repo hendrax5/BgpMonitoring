@@ -48,14 +48,19 @@ export async function GET(req: NextRequest) {
                 return [];
             }
 
-            const events = await poller.fetchBgpLog();
-            return events.map((e: any) => ({ ...e, deviceName: device.hostname, deviceId: device.id }));
+            const outputStr = await poller.fetchLiveSessions();
+            return {
+                deviceName: device.hostname,
+                deviceId: device.id,
+                vendor: device.vendor,
+                output: outputStr
+            };
         })
     );
 
     const allEvents = results
-        .filter((r): r is PromiseFulfilledResult<any[]> => r.status === 'fulfilled')
-        .flatMap(r => r.value);
+        .filter((r): r is PromiseFulfilledResult<any> => r.status === 'fulfilled')
+        .map(r => r.value);
 
     return NextResponse.json({ events: allEvents, deviceCount: devices.length });
 }

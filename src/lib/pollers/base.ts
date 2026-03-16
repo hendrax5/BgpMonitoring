@@ -61,6 +61,14 @@ export abstract class BasePoller {
     }
 
     /**
+     * Executes vendor-specific commands to fetch live BGP summary
+     * Returns raw string output formatted for the frontend LiveEventPanel.
+     */
+    async fetchLiveSessions(): Promise<string> {
+        return 'Live diagnostics not implemented for this vendor.';
+    }
+
+    /**
      * SNMP-only poll: builds full BgpPeerState[] from BGP4-MIB.
      * Use when SSH is unavailable or pollMethod = 'snmp'.
      * Requires snmpCommunity to be set on the device.

@@ -53,6 +53,16 @@ export class DanosPoller extends BasePoller {
             return parseFrrLog(output);
         } catch { return []; }
     }
+
+    override async fetchLiveSessions(): Promise<string> {
+        if (!this.device.sshCredential) return 'Error: No SSH Credentials';
+        try {
+            const ssh = new SshPoller(this.device.ipAddress, this.device.sshCredential);
+            return await ssh.exec('show bgp summary');
+        } catch (err: any) {
+            return `Error fetching live sessions: ${err.message}`;
+        }
+    }
 }
 
 export function parseFrrDescriptions(output: string): Map<string, string> {
