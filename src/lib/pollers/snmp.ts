@@ -2,23 +2,33 @@ import snmp from 'net-snmp';
 
 /**
  * BGP4-MIB OIDs (RFC 1657)
- *   bgpPeerFsmEstablishedTime .1.3.6.1.2.1.15.3.1.16.{peerIp}  — seconds peer has been Established
- *   bgpPeerInUpdates          .1.3.6.1.2.1.15.3.1.10.{peerIp}  — UPDATE messages received
- *   bgpPeerOutUpdates         .1.3.6.1.2.1.15.3.1.11.{peerIp}  — UPDATE messages sent
- *
- * Note: Standard BGP4-MIB has no prefix count field. We return inUpdates/outUpdates as a proxy,
- * which works well enough for established-time and a relative indicator. Vendor-specific MIBs
- * (Cisco CISCO-BGP4-MIB, Juniper BGP-MIB etc.) would be needed for exact prefix counts —
- * those are handled by each vendor poller via SSH.
+ *   bgpPeerState              .1.3.6.1.2.1.15.3.1.2.{peerIp}  — FSM state (1-6)
+ *   bgpPeerRemoteAs           .1.3.6.1.2.1.15.3.1.9.{peerIp}  — remote ASN
+ *   bgpPeerFsmEstablishedTime .1.3.6.1.2.1.15.3.1.16.{peerIp} — seconds in Established
+ *   bgpPeerInUpdates          .1.3.6.1.2.1.15.3.1.10.{peerIp} — UPDATE msgs received
+ *   bgpPeerOutUpdates         .1.3.6.1.2.1.15.3.1.11.{peerIp} — UPDATE msgs sent
  */
+const BGP4_PEER_STATE      = '1.3.6.1.2.1.15.3.1.2';
+const BGP4_REMOTE_AS       = '1.3.6.1.2.1.15.3.1.9';
 const BGP4_ESTABLISHED_TIME = '1.3.6.1.2.1.15.3.1.16';
 const BGP4_IN_UPDATES       = '1.3.6.1.2.1.15.3.1.10';
 const BGP4_OUT_UPDATES      = '1.3.6.1.2.1.15.3.1.11';
+
+/** BGP FSM state number → string name (RFC 1657 §4.3) */
+const BGP_STATE_MAP: Record<number, string> = {
+    1: 'Idle', 2: 'Connect', 3: 'Active',
+    4: 'OpenSent', 5: 'OpenConfirm', 6: 'Established',
+};
 
 export interface BgpSnmpStats {
     uptime?: number;           // seconds in Established state (bgpPeerFsmEstablishedTime)
     acceptedPrefixes?: number; // UPDATE msgs received (proxy; set to undefined if not useful)
     advertisedPrefixes?: number; // UPDATE msgs sent
+}
+
+export interface BgpPeerFull extends BgpSnmpStats {
+    bgpState: string;  // human-readable FSM state
+    remoteAsn: number;
 }
 
 export class SnmpPoller {
@@ -80,6 +90,34 @@ export class SnmpPoller {
                 });
             }
         } catch { /* SNMP not available, return empty */ }
+        return result;
+    }
+
+    /**
+     * Get FULL BGP peer list from BGP4-MIB (for SNMP-only mode).
+     * Walks bgpPeerState + bgpPeerRemoteAs + stats OIDs.
+     * Returns Map: peerIp → BgpPeerFull (state, ASN, uptime, prefix counts)
+     */
+    async getBgpPeersFromMib(): Promise<Map<string, BgpPeerFull>> {
+        const result = new Map<string, BgpPeerFull>();
+        const [stateMap, asnMap, uptimeMap, inUpdMap, outUpdMap] = await Promise.all([
+            this.walkTable(BGP4_PEER_STATE),
+            this.walkTable(BGP4_REMOTE_AS),
+            this.walkTable(BGP4_ESTABLISHED_TIME),
+            this.walkTable(BGP4_IN_UPDATES),
+            this.walkTable(BGP4_OUT_UPDATES),
+        ]);
+
+        // bgpPeerState is authoritative — only include peers that have a state entry
+        for (const [ip, stateNum] of stateMap.entries()) {
+            result.set(ip, {
+                bgpState:           BGP_STATE_MAP[stateNum] || 'Unknown',
+                remoteAsn:          asnMap.get(ip) ?? 0,
+                uptime:             uptimeMap.get(ip),
+                acceptedPrefixes:   inUpdMap.get(ip),
+                advertisedPrefixes: outUpdMap.get(ip),
+            });
+        }
         return result;
     }
 

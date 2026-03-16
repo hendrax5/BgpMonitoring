@@ -61,6 +61,58 @@ export abstract class BasePoller {
     }
 
     /**
+     * SNMP-only poll: builds full BgpPeerState[] from BGP4-MIB.
+     * Use when SSH is unavailable or pollMethod = 'snmp'.
+     * Requires snmpCommunity to be set on the device.
+     */
+    async pollSnmpOnly(): Promise<BgpPeerState[]> {
+        if (!this.device.snmpCommunity) return [];
+        const snmpPoller = new SnmpPoller(
+            this.device.ipAddress,
+            this.device.snmpCommunity,
+            this.device.snmpVersion ?? 'v2c',
+            this.device.snmpPort ?? 161
+        );
+        try {
+            const peerMap = await snmpPoller.getBgpPeersFromMib();
+            const peers: BgpPeerState[] = [];
+            for (const [peerIp, s] of peerMap.entries()) {
+                if (!s.remoteAsn) continue; // skip entries with no ASN (usually local router)
+                peers.push({
+                    peerIp,
+                    remoteAsn:          s.remoteAsn,
+                    bgpState:           s.bgpState,
+                    acceptedPrefixes:   s.acceptedPrefixes  ?? 0,
+                    advertisedPrefixes: s.advertisedPrefixes ?? 0,
+                    uptime: s.bgpState === 'Established' ? s.uptime : undefined,
+                });
+            }
+            return peers;
+        } catch { return []; }
+        finally { snmpPoller.close(); }
+    }
+
+    /**
+     * Preferred entry point for sync.ts.
+     * - If pollMethod === 'snmp': go straight to SNMP (skip SSH entirely).
+     * - Otherwise: try SSH poll(); on failure, attempt SNMP fallback if configured.
+     */
+    async pollWithSnmpFallback(): Promise<BgpPeerState[]> {
+        if (this.device.pollMethod === 'snmp') {
+            return this.pollSnmpOnly();
+        }
+        try {
+            return await this.poll();
+        } catch (err: any) {
+            if (this.device.snmpCommunity) {
+                console.log(`⚠️ [${this.device.hostname}] SSH failed (${err.message.slice(0, 80)}), trying SNMP fallback`);
+                return this.pollSnmpOnly();
+            }
+            throw err; // no SNMP configured — re-throw so pollDevice logs the error
+        }
+    }
+
+    /**
      * Enrich SSH-parsed peer states with SNMP BGP4-MIB data.
      * - Uptime: SNMP bgpPeerFsmEstablishedTime is the PRIMARY source (direct MIB value, accurate).
      *   SSH-parsed uptime is used only as fallback when SNMP is unavailable.
