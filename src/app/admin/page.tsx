@@ -219,17 +219,24 @@ export default async function AdminPage() {
                                                 </span>
                                             </td>
                                             <td>
-                                                {t.slug !== 'platform-admin' && (
-                                                    <form action={deleteTenant}
-                                                        onSubmit={(e) => { if (!confirm(`Hapus tenant "${t.name}"? Semua data akan terhapus.`)) e.preventDefault(); }}>
-                                                        <input type="hidden" name="tenantId" value={t.id} />
-                                                        <button type="submit"
-                                                            className="text-xs px-2.5 py-1 rounded-lg"
-                                                            style={{ color: '#f43f5e', border: '1px solid rgba(244,63,94,0.3)' }}>
-                                                            Hapus
-                                                        </button>
-                                                    </form>
-                                                )}
+                                                <div className="flex items-center gap-2">
+                                                    <Link href={`/admin/tenants/${t.id}`}
+                                                        className="text-xs px-2.5 py-1 rounded-lg font-medium"
+                                                        style={{ color: '#13a4ec', border: '1px solid rgba(19,164,236,0.3)' }}>
+                                                        Kelola
+                                                    </Link>
+                                                    {t.slug !== 'platform-admin' && (
+                                                        <form action={deleteTenant}
+                                                            onSubmit={(e) => { if (!confirm(`Hapus tenant "${t.name}"? Semua data akan terhapus.`)) e.preventDefault(); }}>
+                                                            <input type="hidden" name="tenantId" value={t.id} />
+                                                            <button type="submit"
+                                                                className="text-xs px-2.5 py-1 rounded-lg"
+                                                                style={{ color: '#f43f5e', border: '1px solid rgba(244,63,94,0.3)' }}>
+                                                                Hapus
+                                                            </button>
+                                                        </form>
+                                                    )}
+                                                </div>
                                             </td>
                                         </tr>
                                     );
