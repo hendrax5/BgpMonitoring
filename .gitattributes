@@ -1,0 +1,5 @@
+# Shell scripts must always use LF (Unix) line endings for Docker/Alpine Linux
+*.sh text eol=lf
+
+# Prevent CRLF auto-conversion for Dockerfile
+Dockerfile text eol=lf

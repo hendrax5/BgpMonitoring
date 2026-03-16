@@ -51,7 +51,8 @@ RUN mkdir -p /app/worker_deps && cd /app/worker_deps && npm init -y && npm insta
 EXPOSE 3000
 
 # We use a custom start script to run both the Next.js server and the Prisma worker
-COPY --chown=nextjs:nodejs start.sh ./
-RUN chmod +x start.sh
+COPY start.sh ./
+# Strip Windows CRLF line endings → LF (critical on Alpine Linux)
+RUN sed -i 's/\r$//' start.sh && chmod +x start.sh
 
 CMD ["./start.sh"]
