@@ -39,8 +39,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     const users = await (prisma as any).appUser.findMany({
         where: {
             tenantId: session.tenantId,
-            // Superadmin tidak tampil di list tenant users
-            ...(session.role !== 'superadmin' ? { role: { not: 'superadmin' } } : {})
+            NOT: { role: 'superadmin' }, // Platform account — tidak ditampilkan di tenant settings
         },
         orderBy: { createdAt: 'desc' }
     });
