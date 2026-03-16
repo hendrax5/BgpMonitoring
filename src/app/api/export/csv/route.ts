@@ -1,43 +1,85 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getHistoricalEvents } from '@/app/actions/reports';
+import { requireSession } from '@/lib/auth';
+import { redis } from '@/lib/redis';
+import { prisma } from '@/lib/prisma';
 import Papa from 'papaparse';
 
 export async function GET(request: NextRequest) {
-    const searchParams = request.nextUrl.searchParams;
-    const start = searchParams.get('start') || undefined;
-    const end = searchParams.get('end') || undefined;
-    const asn = searchParams.get('asn') || undefined;
+    const session = await requireSession();
+    const isSuperAdmin = session.role === 'superadmin';
 
-    const events = await getHistoricalEvents({ startDate: start, endDate: end, asn });
+    // Read all BGP sessions from Redis (same as dashboard)
+    const redisPattern = isSuperAdmin ? 'BgpSession:*' : `BgpSession:${session.tenantId}:*`;
+    const allKeys = await redis.keys(redisPattern).catch(() => [] as string[]);
 
-    // Map to clear CSV columns
-    const csvData = events.map(ev => {
-        let downtime = '';
-        if (ev.downtimeDuration !== null) {
-            downtime = `${Math.floor(ev.downtimeDuration / 60)}m ${ev.downtimeDuration % 60}s`;
-        }
+    let sessions: any[] = [];
+    if (allKeys.length > 0) {
+        const pipeline = redis.pipeline();
+        allKeys.forEach(k => pipeline.hget(k, 'data'));
+        const results = await pipeline.exec();
+        sessions = results
+            ?.map(([, res]) => res ? JSON.parse(res as string) : null)
+            .filter(Boolean) || [];
+    }
+
+    // Apply status filter from query param (?status=down)
+    const statusFilter = request.nextUrl.searchParams.get('status');
+    if (statusFilter === 'down') {
+        sessions = sessions.filter(s => s.bgpState !== 'Established');
+    } else if (statusFilter === 'up') {
+        sessions = sessions.filter(s => s.bgpState === 'Established');
+    }
+
+    // Enrich with ASN organization names
+    const uniqueAsns = Array.from(new Set(sessions.map(s => BigInt(s.remoteAsn))));
+    const asnRecords = uniqueAsns.length > 0
+        ? await prisma.asnDictionary.findMany({ where: { asn: { in: uniqueAsns } } })
+        : [];
+    const asnMap = new Map(asnRecords.map(r => [r.asn.toString(), r.organizationName]));
+
+    // Sort: DOWN first, then by stateChangedAt
+    sessions.sort((a, b) => {
+        const aUp = a.bgpState === 'Established';
+        const bUp = b.bgpState === 'Established';
+        if (aUp !== bUp) return aUp ? 1 : -1;
+        return new Date(a.stateChangedAt).getTime() - new Date(b.stateChangedAt).getTime();
+    });
+
+    // Build CSV rows
+    const now = Date.now();
+    const csvData = sessions.map(s => {
+        const isUp = s.bgpState === 'Established';
+        const stateChangedMs = new Date(s.stateChangedAt).getTime();
+        const uptimeSec = Math.floor((now - stateChangedMs) / 1000);
+        const days  = Math.floor(uptimeSec / 86400);
+        const hours = Math.floor((uptimeSec % 86400) / 3600);
+        const mins  = Math.floor((uptimeSec % 3600) / 60);
+        const uptimeStr = days > 0 ? `${days}d ${hours}h ${mins}m`
+                        : hours > 0 ? `${hours}h ${mins}m`
+                        : `${mins}m`;
 
         return {
-            'Timestamp': ev.eventTimestamp.toISOString(),
-            'Server Source': ev.serverName,
-            'Device Name': ev.deviceName,
-            'Device IP': ev.deviceIp,
-            'Peer IP': ev.peerIp,
-            'ASN': ev.asn.toString(),
-            'Organization': ev.organizationName,
-            'Event Type': ev.eventType,
-            'Downtime Duration': downtime,
-            'Downtime (Seconds)': ev.downtimeDuration || 0
+            'Peer IP':          s.peerIp,
+            'Description':      s.peerDescription || '',
+            'Device':           s.deviceName,
+            'Remote ASN':       s.remoteAsn,
+            'Organization':     asnMap.get(s.remoteAsn.toString()) || 'Unknown AS',
+            'Status':           s.bgpState,
+            'Uptime':           isUp ? uptimeStr : '-',
+            'Since':            new Date(s.stateChangedAt).toISOString(),
+            'Pfx Received':     s.acceptedPrefixes ?? 0,
+            'Pfx Sent':         s.advertisedPrefixes ?? 0,
+            'Last Updated':     new Date(s.lastUpdated).toISOString(),
         };
     });
 
     const csvString = Papa.unparse(csvData);
+    const filename = `bgp_peers_${new Date().toISOString().split('T')[0]}.csv`;
 
-    // Return as downloadable file
     return new NextResponse(csvString, {
         headers: {
             'Content-Type': 'text/csv',
-            'Content-Disposition': `attachment; filename="bgp_report_${new Date().toISOString().split('T')[0]}.csv"`
+            'Content-Disposition': `attachment; filename="${filename}"`
         }
     });
 }
