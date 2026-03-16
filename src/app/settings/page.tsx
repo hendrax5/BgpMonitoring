@@ -66,7 +66,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                 </div>
                 <div className="flex items-center gap-4">
                     <SyncButton />
-                    
+
                     <a href="/" className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg"
                         style={{ color: '#64748b', border: '1px solid rgba(255,255,255,0.07)' }}>
                         ← Dashboard
@@ -87,137 +87,137 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 
                     {/* Device Add/Edit Form: only for device.manage roles */}
                     {can(session.role, 'device.manage') ? (
-                    <div className="md:col-span-1">
-                        <div className="card p-5 sticky top-20">
-                            <h3 className="font-bold text-white mb-1">
-                                {editDevice ? 'Edit Router' : 'Add Monitored Router'}
-                            </h3>
-                            <p className="text-xs mb-5" style={{ color: '#64748b' }}>
-                                {editDevice ? `Editing: ${editDevice.hostname}` : 'Add a device to be polled directly via SNMP/SSH.'}
-                            </p>
+                        <div className="md:col-span-1">
+                            <div className="card p-5 sticky top-20">
+                                <h3 className="font-bold text-white mb-1">
+                                    {editDevice ? 'Edit Router' : 'Add Monitored Router'}
+                                </h3>
+                                <p className="text-xs mb-5" style={{ color: '#64748b' }}>
+                                    {editDevice ? `Editing: ${editDevice.hostname}` : 'Add a device to be polled directly via SNMP/SSH.'}
+                                </p>
 
-                            <form action={async (formData: FormData) => {
-                                'use server';
-                                const id = formData.get('id');
-                                if (id) await updateRouterDevice(formData);
-                                else await addRouterDevice(formData);
-                            }} className="space-y-4">
+                                <form action={async (formData: FormData) => {
+                                    'use server';
+                                    const id = formData.get('id');
+                                    if (id) await updateRouterDevice(formData);
+                                    else await addRouterDevice(formData);
+                                }} className="space-y-4">
 
-                                {editDevice && <input type="hidden" name="id" value={editDevice.id} />}
+                                    {editDevice && <input type="hidden" name="id" value={editDevice.id} />}
 
-                                <div>
-                                    <label className="block text-xs font-medium mb-1" style={{ color: '#64748b' }}>Hostname / Alias</label>
-                                    <input type="text" name="hostname" placeholder="e.g. Core-Jakarta"
-                                        defaultValue={editDevice?.hostname || ''}
-                                        className="form-input" required />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-medium mb-1" style={{ color: '#64748b' }}>IP Address</label>
-                                    <input type="text" name="ipAddress" placeholder="e.g. 10.10.10.1"
-                                        defaultValue={editDevice?.ipAddress || ''}
-                                        className="form-input" required />
-                                </div>
-                                <div className="grid grid-cols-2 gap-3">
                                     <div>
-                                        <label className="block text-xs font-medium mb-1" style={{ color: '#64748b' }}>Vendor</label>
-                                        <select name="vendor" className="form-input" defaultValue={editDevice?.vendor || 'mikrotik'}>
-                                            <option value="mikrotik">MikroTik RouterOS</option>
-                                            <option value="cisco">Cisco IOS/XR</option>
-                                            <option value="juniper">Juniper JunOS</option>
-                                            <option value="huawei">Huawei VRP</option>
-                                            <option value="danos">DanOS</option>
-                                            <option value="vyos">VyOS</option>
-                                        </select>
+                                        <label className="block text-xs font-medium mb-1" style={{ color: '#64748b' }}>Hostname / Alias</label>
+                                        <input type="text" name="hostname" placeholder="e.g. Core-Jakarta"
+                                            defaultValue={editDevice?.hostname || ''}
+                                            className="form-input" required />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-medium mb-1" style={{ color: '#64748b' }}>Polling Method</label>
-                                        <select name="pollMethod" className="form-input" defaultValue={editDevice?.pollMethod || 'snmp_ssh_mix'}>
-                                            <option value="snmp_ssh_mix">SNMP + SSH Mix</option>
-                                            <option value="snmp_only">SNMP Only</option>
-                                            <option value="ssh_only">SSH Only</option>
-                                        </select>
+                                        <label className="block text-xs font-medium mb-1" style={{ color: '#64748b' }}>IP Address</label>
+                                        <input type="text" name="ipAddress" placeholder="e.g. 10.10.10.1"
+                                            defaultValue={editDevice?.ipAddress || ''}
+                                            className="form-input" required />
                                     </div>
-                                </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-xs font-medium mb-1" style={{ color: '#64748b' }}>Vendor</label>
+                                            <select name="vendor" className="form-input" defaultValue={editDevice?.vendor || 'mikrotik'}>
+                                                <option value="mikrotik">MikroTik RouterOS</option>
+                                                <option value="cisco">Cisco IOS/XR</option>
+                                                <option value="juniper">Juniper JunOS</option>
+                                                <option value="huawei">Huawei VRP</option>
+                                                <option value="danos">DanOS</option>
+                                                <option value="vyos">VyOS</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-medium mb-1" style={{ color: '#64748b' }}>Polling Method</label>
+                                            <select name="pollMethod" className="form-input" defaultValue={editDevice?.pollMethod || 'snmp_ssh_mix'}>
+                                                <option value="snmp_ssh_mix">SNMP + SSH Mix</option>
+                                                <option value="snmp_only">SNMP Only</option>
+                                                <option value="ssh_only">SSH Only</option>
+                                            </select>
+                                        </div>
+                                    </div>
 
-                                <hr style={{ borderColor: 'rgba(255,255,255,0.07)' }} className="my-2" />
-                                
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div>
-                                        <label className="block text-xs font-medium mb-1" style={{ color: '#64748b' }}>SNMP Version</label>
-                                        <select name="snmpVersion" className="form-input" defaultValue={editDevice?.snmpVersion || 'v2c'}>
-                                            <option value="v2c">v2c</option>
-                                            <option value="v3">v3</option>
-                                        </select>
+                                    <hr style={{ borderColor: 'rgba(255,255,255,0.07)' }} className="my-2" />
+
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-xs font-medium mb-1" style={{ color: '#64748b' }}>SNMP Version</label>
+                                            <select name="snmpVersion" className="form-input" defaultValue={editDevice?.snmpVersion || 'v2c'}>
+                                                <option value="v2c">v2c</option>
+                                                <option value="v3">v3</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-medium mb-1" style={{ color: '#64748b' }}>SNMP Port</label>
+                                            <input type="number" name="snmpPort" placeholder="161"
+                                                defaultValue={editDevice?.snmpPort || 161}
+                                                className="form-input" />
+                                        </div>
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-medium mb-1" style={{ color: '#64748b' }}>SNMP Port</label>
-                                        <input type="number" name="snmpPort" placeholder="161"
-                                            defaultValue={editDevice?.snmpPort || 161}
+                                        <label className="block text-xs font-medium mb-1" style={{ color: '#64748b' }}>SNMP Community / Context</label>
+                                        <input type="password" name="snmpCommunity" placeholder="••••••••"
+                                            defaultValue={editDevice?.snmpCommunity || ''}
                                             className="form-input" />
                                     </div>
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-medium mb-1" style={{ color: '#64748b' }}>SNMP Community / Context</label>
-                                    <input type="password" name="snmpCommunity" placeholder="••••••••"
-                                        defaultValue={editDevice?.snmpCommunity || ''}
-                                        className="form-input" />
-                                </div>
 
-                                <hr style={{ borderColor: 'rgba(255,255,255,0.07)' }} className="my-2" />
+                                    <hr style={{ borderColor: 'rgba(255,255,255,0.07)' }} className="my-2" />
 
-                                {/* SSH Credentials — inline */}
-                                <div className="space-y-1 mb-1">
-                                    <p className="text-xs font-semibold" style={{ color: '#13a4ec' }}>SSH Credentials</p>
-                                    <p className="text-[10px]" style={{ color: '#475569' }}>Kosongkan jika tidak pakai SSH</p>
-                                </div>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div>
-                                        <label className="block text-xs font-medium mb-1" style={{ color: '#64748b' }}>SSH Username</label>
-                                        <input type="text" name="sshUser" placeholder="admin"
-                                            defaultValue={editDevice?.sshCredential?.sshUser || ''}
-                                            className="form-input" autoComplete="off" />
+                                    {/* SSH Credentials — inline */}
+                                    <div className="space-y-1 mb-1">
+                                        <p className="text-xs font-semibold" style={{ color: '#13a4ec' }}>SSH Credentials</p>
+                                        <p className="text-[10px]" style={{ color: '#475569' }}>Kosongkan jika tidak pakai SSH</p>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-xs font-medium mb-1" style={{ color: '#64748b' }}>SSH Username</label>
+                                            <input type="text" name="sshUser" placeholder="admin"
+                                                defaultValue={editDevice?.sshCredential?.sshUser || ''}
+                                                className="form-input" autoComplete="off" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-medium mb-1" style={{ color: '#64748b' }}>SSH Port</label>
+                                            <input type="number" name="sshPort" placeholder="22"
+                                                defaultValue={editDevice?.sshCredential?.sshPort || 22}
+                                                className="form-input" />
+                                        </div>
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-medium mb-1" style={{ color: '#64748b' }}>SSH Port</label>
-                                        <input type="number" name="sshPort" placeholder="22"
-                                            defaultValue={editDevice?.sshCredential?.sshPort || 22}
-                                            className="form-input" />
+                                        <label className="block text-xs font-medium mb-1" style={{ color: '#64748b' }}>SSH Password</label>
+                                        <input type="password" name="sshPass"
+                                            placeholder={editDevice?.sshCredential ? '•••••••• (tersimpan, kosongkan jika tidak diubah)' : '••••••••'}
+                                            className="form-input" autoComplete="new-password" />
                                     </div>
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-medium mb-1" style={{ color: '#64748b' }}>SSH Password</label>
-                                    <input type="password" name="sshPass"
-                                        placeholder={editDevice?.sshCredential ? '•••••••• (tersimpan, kosongkan jika tidak diubah)' : '••••••••'}
-                                        className="form-input" autoComplete="new-password" />
-                                </div>
 
 
-                                <div className="flex gap-2 pt-2">
-                                    <button type="submit" className="flex-1 py-2.5 text-sm font-bold rounded-lg text-white"
-                                        style={{ backgroundColor: '#13a4ec' }}>
-                                        {editDevice ? 'Update Router' : 'Save Router'}
-                                    </button>
-                                    {editDevice && (
-                                        <a href="/settings" className="flex items-center justify-center px-4 py-2.5 text-sm rounded-lg"
-                                            style={{ backgroundColor: 'rgba(255,255,255,0.06)', color: '#94a3b8' }}>
-                                            Cancel
-                                        </a>
-                                    )}
-                                </div>
-                            </form>
+                                    <div className="flex gap-2 pt-2">
+                                        <button type="submit" className="flex-1 py-2.5 text-sm font-bold rounded-lg text-white"
+                                            style={{ backgroundColor: '#13a4ec' }}>
+                                            {editDevice ? 'Update Router' : 'Save Router'}
+                                        </button>
+                                        {editDevice && (
+                                            <a href="/settings" className="flex items-center justify-center px-4 py-2.5 text-sm rounded-lg"
+                                                style={{ backgroundColor: 'rgba(255,255,255,0.06)', color: '#94a3b8' }}>
+                                                Cancel
+                                            </a>
+                                        )}
+                                    </div>
+                                </form>
+                            </div>
                         </div>
-                    </div>
                     ) : (
-                    <div className="md:col-span-1">
-                        <div className="card p-5" style={{ border: '1px solid rgba(245,158,11,0.2)', background: 'rgba(245,158,11,0.04)' }}>
-                            <span className="material-symbols-outlined text-2xl block mb-2" style={{ color: '#f59e0b' }}>lock</span>
-                            <h3 className="font-bold text-white mb-1">Device Management</h3>
-                            <p className="text-xs" style={{ color: '#64748b' }}>Hanya OrgAdmin dan SuperAdmin yang bisa menambah, mengedit, atau menghapus perangkat.</p>
-                            <p className="text-xs mt-2 px-2 py-1 rounded" style={{ backgroundColor: 'rgba(255,255,255,0.04)', color: '#94a3b8' }}>
-                                Role Anda: <strong style={{ color: '#f59e0b' }}>{session.role}</strong>
-                            </p>
+                        <div className="md:col-span-1">
+                            <div className="card p-5" style={{ border: '1px solid rgba(245,158,11,0.2)', background: 'rgba(245,158,11,0.04)' }}>
+                                <span className="material-symbols-outlined text-2xl block mb-2" style={{ color: '#f59e0b' }}>lock</span>
+                                <h3 className="font-bold text-white mb-1">Device Management</h3>
+                                <p className="text-xs" style={{ color: '#64748b' }}>Hanya OrgAdmin dan SuperAdmin yang bisa menambah, mengedit, atau menghapus perangkat.</p>
+                                <p className="text-xs mt-2 px-2 py-1 rounded" style={{ backgroundColor: 'rgba(255,255,255,0.04)', color: '#94a3b8' }}>
+                                    Role Anda: <strong style={{ color: '#f59e0b' }}>{session.role}</strong>
+                                </p>
+                            </div>
                         </div>
-                    </div>
                     )}
 
                     {/* Configured Devices List */}
@@ -291,25 +291,25 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                                                 <td style={{ textAlign: 'right' }}>
                                                     <div className="flex items-center justify-end gap-1">
                                                         {can(session.role, 'device.manage') && (
-                                                        <>
-                                                        <a href={`/settings?edit=${device.id}`}
-                                                            className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg transition-colors"
-                                                            style={{ color: '#13a4ec', backgroundColor: 'rgba(19,164,236,0.08)' }}
-                                                            title="Edit">
-                                                            <span className="material-symbols-outlined text-sm">edit</span>
-                                                        </a>
-                                                        <form action={async () => {
-                                                            'use server';
-                                                            await deleteRouterDevice(device.id);
-                                                        }}>
-                                                            <button type="submit"
-                                                                className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg transition-colors"
-                                                                style={{ color: '#f43f5e', backgroundColor: 'rgba(244,63,94,0.08)' }}
-                                                                title="Delete">
-                                                                <span className="material-symbols-outlined text-sm">delete</span>
-                                                            </button>
-                                                        </form>
-                                                        </>
+                                                            <>
+                                                                <a href={`/settings?edit=${device.id}`}
+                                                                    className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg transition-colors"
+                                                                    style={{ color: '#13a4ec', backgroundColor: 'rgba(19,164,236,0.08)' }}
+                                                                    title="Edit">
+                                                                    <span className="material-symbols-outlined text-sm">edit</span>
+                                                                </a>
+                                                                <form action={async () => {
+                                                                    'use server';
+                                                                    await deleteRouterDevice(device.id);
+                                                                }}>
+                                                                    <button type="submit"
+                                                                        className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg transition-colors"
+                                                                        style={{ color: '#f43f5e', backgroundColor: 'rgba(244,63,94,0.08)' }}
+                                                                        title="Delete">
+                                                                        <span className="material-symbols-outlined text-sm">delete</span>
+                                                                    </button>
+                                                                </form>
+                                                            </>
                                                         )}
                                                         {!can(session.role, 'device.manage') && (
                                                             <span className="text-[10px] px-2 py-1 rounded" style={{ color: '#475569', backgroundColor: 'rgba(255,255,255,0.04)' }}>Read only</span>
@@ -343,55 +343,55 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                             </p>
 
                             {can(session.role, 'user.manageTenant') && (
-                            <form action={async (formData: FormData) => {
-                                'use server';
-                                const id = formData.get('id');
-                                if (id) await updateUser(formData);
-                                else await addUser(formData);
-                            }} className="space-y-4">
+                                <form action={async (formData: FormData) => {
+                                    'use server';
+                                    const id = formData.get('id');
+                                    if (id) await updateUser(formData);
+                                    else await addUser(formData);
+                                }} className="space-y-4">
 
-                                {editUserObj && <input type="hidden" name="id" value={editUserObj.id} />}
+                                    {editUserObj && <input type="hidden" name="id" value={editUserObj.id} />}
 
-                                <div>
-                                    <label className="block text-xs font-medium mb-1" style={{ color: '#64748b' }}>Username</label>
-                                    <input type="text" name="username" placeholder="e.g. jdoe"
-                                        defaultValue={editUserObj?.username || ''}
-                                        className="form-input" required />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-medium mb-1" style={{ color: '#64748b' }}>
-                                        Password {editUserObj && <span className="text-[10px] text-[#f59e0b]">(Leave blank to keep current)</span>}
-                                    </label>
-                                    <input type="password" name="password" placeholder="••••••••"
-                                        className="form-input" required={!editUserObj} />
-                                </div>
+                                    <div>
+                                        <label className="block text-xs font-medium mb-1" style={{ color: '#64748b' }}>Username</label>
+                                        <input type="text" name="username" placeholder="e.g. jdoe"
+                                            defaultValue={editUserObj?.username || ''}
+                                            className="form-input" required />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium mb-1" style={{ color: '#64748b' }}>
+                                            Password {editUserObj && <span className="text-[10px] text-[#f59e0b]">(Leave blank to keep current)</span>}
+                                        </label>
+                                        <input type="password" name="password" placeholder="••••••••"
+                                            className="form-input" required={!editUserObj} />
+                                    </div>
 
-                                {/* Role Dropdown */}
-                                {!editUserObj && (
-                                <div>
-                                    <label className="block text-xs font-medium mb-1" style={{ color: '#64748b' }}>Role</label>
-                                    <select name="role" className="form-input" defaultValue="viewer">
-                                        <option value="orgadmin">OrgAdmin — manage devices &amp; users</option>
-                                        <option value="networkengineer">Network Engineer — view &amp; config alerts</option>
-                                        <option value="viewer">Viewer — read only</option>
-                                    </select>
-                                    <p className="text-[11px] mt-1" style={{ color: '#475569' }}>Superadmin tidak bisa diassign via form ini.</p>
-                                </div>
-                                )}
-
-                                <div className="pt-2 flex gap-2">
-                                    <button type="submit" className="flex-1 py-2 rounded-lg text-sm font-bold transition-colors"
-                                        style={{ backgroundColor: '#13a4ec', color: 'white' }}>
-                                        {editUserObj ? 'Update User' : 'Save User'}
-                                    </button>
-                                    {editUserObj && (
-                                        <a href="/settings" className="flex-1 py-2 text-center rounded-lg text-sm font-bold transition-colors"
-                                            style={{ backgroundColor: 'rgba(255,255,255,0.07)', color: 'white' }}>
-                                            Cancel
-                                        </a>
+                                    {/* Role Dropdown */}
+                                    {!editUserObj && (
+                                        <div>
+                                            <label className="block text-xs font-medium mb-1" style={{ color: '#64748b' }}>Role</label>
+                                            <select name="role" className="form-input" defaultValue="viewer">
+                                                <option value="orgadmin">OrgAdmin — manage devices &amp; users</option>
+                                                <option value="networkengineer">Network Engineer — view &amp; config alerts</option>
+                                                <option value="viewer">Viewer — read only</option>
+                                            </select>
+                                            <p className="text-[11px] mt-1" style={{ color: '#475569' }}>Superadmin tidak bisa diassign via form ini.</p>
+                                        </div>
                                     )}
-                                </div>
-                            </form>
+
+                                    <div className="pt-2 flex gap-2">
+                                        <button type="submit" className="flex-1 py-2 rounded-lg text-sm font-bold transition-colors"
+                                            style={{ backgroundColor: '#13a4ec', color: 'white' }}>
+                                            {editUserObj ? 'Update User' : 'Save User'}
+                                        </button>
+                                        {editUserObj && (
+                                            <a href="/settings" className="flex-1 py-2 text-center rounded-lg text-sm font-bold transition-colors"
+                                                style={{ backgroundColor: 'rgba(255,255,255,0.07)', color: 'white' }}>
+                                                Cancel
+                                            </a>
+                                        )}
+                                    </div>
+                                </form>
                             )}
                             {!can(session.role, 'user.manageTenant') && (
                                 <div className="p-3 rounded-lg" style={{ backgroundColor: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.15)' }}>
@@ -426,12 +426,12 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                                                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{
                                                     backgroundColor: u.role === 'superadmin' ? 'rgba(245,158,11,0.15)'
                                                         : u.role === 'orgadmin' ? 'rgba(19,164,236,0.15)'
-                                                        : u.role === 'networkengineer' ? 'rgba(16,185,129,0.15)'
-                                                        : 'rgba(255,255,255,0.06)',
+                                                            : u.role === 'networkengineer' ? 'rgba(16,185,129,0.15)'
+                                                                : 'rgba(255,255,255,0.06)',
                                                     color: u.role === 'superadmin' ? '#f59e0b'
                                                         : u.role === 'orgadmin' ? '#13a4ec'
-                                                        : u.role === 'networkengineer' ? '#10b981'
-                                                        : '#64748b',
+                                                            : u.role === 'networkengineer' ? '#10b981'
+                                                                : '#64748b',
                                                 }}>
                                                     {u.role === 'networkengineer' ? 'Net. Engineer' : u.role}
                                                 </span>
