@@ -10,10 +10,10 @@ type CheckType = 'bgp-status' | 'received-routes' | 'advertised-routes' | 'ping'
 function getCommand(vendor: string, checkType: CheckType, peerIp: string): string {
     const cmds: Record<string, Record<CheckType, string>> = {
         cisco: {
-            'bgp-status':        `show bgp neighbors ${peerIp}`,
-            'received-routes':   `show bgp neighbors ${peerIp} received-routes`,
-            'advertised-routes': `show bgp neighbors ${peerIp} advertised-routes`,
-            'ping':              `ping ${peerIp} repeat 5 timeout 3`,
+            'bgp-status':        `show bgp ipv4 unicast neighbors ${peerIp}`,
+            'received-routes':   `show bgp ipv4 unicast neighbors ${peerIp} routes`,
+            'advertised-routes': `show bgp ipv4 unicast neighbors ${peerIp} advertised-routes`,
+            'ping':              `ping ${peerIp} repeat 5`,
             'logs':              `show logging | include ${peerIp}`,
         },
         juniper: {
@@ -24,25 +24,32 @@ function getCommand(vendor: string, checkType: CheckType, peerIp: string): strin
             'logs':              `show log messages | match ${peerIp}`,
         },
         huawei: {
-            'bgp-status':        `display bgp peer ${peerIp} verbose`,
-            'received-routes':   `display bgp routing-table peer ${peerIp} received-routes`,
-            'advertised-routes': `display bgp routing-table peer ${peerIp} advertised-routes`,
-            'ping':              `ping -c 5 -t 3 ${peerIp}`,
-            'logs':              `display logbuffer | include ${peerIp}`,
+            'bgp-status':        `display bgp peer ${peerIp} verbose | no-more`,
+            'received-routes':   `display bgp routing-table peer ${peerIp} received-routes | no-more`,
+            'advertised-routes': `display bgp routing-table peer ${peerIp} advertised-routes | no-more`,
+            'ping':              `ping -c 5 ${peerIp}`,
+            'logs':              `display logbuffer | include ${peerIp} | no-more`,
         },
         mikrotik: {
-            'bgp-status':        `/routing/bgp/session/print where remote.address="${peerIp}"`,
-            'received-routes':   `/ip/route/print where bgp=yes gateway="${peerIp}"`,
+            'bgp-status':        `/routing/bgp/session/print detail without-paging where remote.address="${peerIp}"`,
+            'received-routes':   `/routing/route/print where bgp=yes gateway="${peerIp}"`,
             'advertised-routes': `/routing/bgp/advertisements/print peer="${peerIp}"`,
             'ping':              `/ping ${peerIp} count=5`,
-            'logs':              `/log print where message~"${peerIp}"`,
+            'logs':              `/log print where message~"${peerIp}" without-paging`,
         },
-        arista: {
+        vyos: {
             'bgp-status':        `show bgp neighbors ${peerIp}`,
             'received-routes':   `show bgp neighbors ${peerIp} received-routes`,
             'advertised-routes': `show bgp neighbors ${peerIp} advertised-routes`,
-            'ping':              `ping ${peerIp} repeat 5`,
-            'logs':              `show logging | include ${peerIp}`,
+            'ping':              `ping ${peerIp} count 5`,
+            'logs':              `show log | match ${peerIp}`,
+        },
+        danos: {
+            'bgp-status':        `show bgp neighbors ${peerIp}`,
+            'received-routes':   `show bgp neighbors ${peerIp} received-routes`,
+            'advertised-routes': `show bgp neighbors ${peerIp} advertised-routes`,
+            'ping':              `ping ${peerIp} count 5`,
+            'logs':              `show log | match ${peerIp}`,
         },
     };
     return cmds[vendor]?.[checkType] ?? `show bgp neighbors ${peerIp}`;
