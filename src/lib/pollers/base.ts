@@ -93,23 +93,36 @@ export abstract class BasePoller {
     }
 
     /**
-     * Preferred entry point for sync.ts.
-     * - If pollMethod === 'snmp': go straight to SNMP (skip SSH entirely).
-     * - Otherwise: try SSH poll(); on failure, attempt SNMP fallback if configured.
+     * SNMP First, SSH Fallback strategy (Preferred entry point for sync.ts).
+     * 1. If pollMethod is 'snmp', execute only SNMP.
+     * 2. Otherwise try SNMP first (fastest, uses GETBULK, no auth delay).
+     * 3. If SNMP succeeds and returns peers, return them.
+     * 4. If SNMP fails (e.g timeout/filtered) or returns 0 peers (MIB unsupported),
+     *    fallback to executing the native SSH routine.
      */
     async pollWithSnmpFallback(): Promise<BgpPeerState[]> {
         if (this.device.pollMethod === 'snmp') {
             return this.pollSnmpOnly();
         }
-        try {
-            return await this.poll();
-        } catch (err: any) {
-            if (this.device.snmpCommunity) {
-                console.log(`⚠️ [${this.device.hostname}] SSH failed (${err.message.slice(0, 80)}), trying SNMP fallback`);
-                return this.pollSnmpOnly();
+
+        // --- SNMP First Attempt ---
+        let snmpPeers: BgpPeerState[] = [];
+        if (this.device.snmpCommunity && this.device.pollMethod !== 'ssh') {
+            try {
+                snmpPeers = await this.pollSnmpOnly();
+            } catch (err: any) {
+                console.log(`⚠️ [${this.device.hostname}] SNMP First failed (${err.message.slice(0, 80)}), falling back to SSH`);
             }
-            throw err; // no SNMP configured — re-throw so pollDevice logs the error
+
+            if (snmpPeers.length > 0) {
+                return snmpPeers; // Success with SNMP
+            }
+
+            console.log(`⚠️ [${this.device.hostname}] SNMP First returned 0 peers, falling back to SSH`);
         }
+
+        // --- SSH Fallback Attempt ---
+        return await this.poll();
     }
 
     /**

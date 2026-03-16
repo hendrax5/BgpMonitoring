@@ -63,7 +63,8 @@ export class SnmpPoller {
                     if (!isNaN(val)) map.set(suffix, val);
                 }
             };
-            this.session.walk(baseOid, 20, feedCb, (_error: any) => resolve(map));
+            // Use .subtree instead of .walk to leverage SNMP GETBULK for v2c/v3
+            this.session.subtree(baseOid, 40, feedCb, (_error: any) => resolve(map));
         });
     }
 
