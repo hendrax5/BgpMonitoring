@@ -38,7 +38,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
 
   // Latest BGP events — superadmin sees all, regular user sees their tenant
   const latestDbEvents = await (prisma as any).historicalEvent.findMany({
-    where: isSuperAdmin ? {} : { tenantId: session.tenantId },
+    where: {
+      ...(isSuperAdmin ? {} : { tenantId: session.tenantId }),
+      ...(deviceFilter ? { deviceName: deviceFilter } : {}),
+    },
     orderBy: { eventTimestamp: 'desc' },
     take: 5,
     include: isSuperAdmin ? { tenant: { select: { slug: true, name: true } } } : undefined,
