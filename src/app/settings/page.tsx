@@ -5,6 +5,7 @@ import { addRouterDevice, updateRouterDevice, deleteRouterDevice, getTelegramSet
 import { addUser, updateUser, deleteUser } from '@/app/actions/users';
 import SyncButton from '@/app/settings/components/SyncButton';
 import RouterTestButton from '@/app/settings/components/RouterTestButton';
+import ImportDevicesButton from '@/app/settings/components/ImportDevicesButton';
 import { revalidatePath } from 'next/cache';
 
 async function saveBranding(formData: FormData) {
@@ -221,10 +222,21 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 
                     {/* Configured Devices List */}
                     <div className="md:col-span-2 card overflow-hidden self-start">
-                        <div className="px-5 py-4 border-b flex justify-between" style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
+                        <div className="px-5 py-4 border-b flex justify-between items-center" style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
                             <div>
                                 <h2 className="font-bold text-white">Monitored Routers</h2>
                                 <p className="text-xs mt-0.5" style={{ color: '#64748b' }}>Worker polls these devices directly.</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <a
+                                    href="/api/devices/export"
+                                    className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg transition-opacity hover:opacity-80"
+                                    style={{ backgroundColor: 'rgba(255,255,255,0.08)', color: '#94a3b8', border: '1px solid rgba(255,255,255,0.12)' }}
+                                >
+                                    <span className="material-symbols-outlined text-sm">download</span>
+                                    Export CSV
+                                </a>
+                                <ImportDevicesButton />
                             </div>
                         </div>
 
