@@ -8,11 +8,11 @@ export class HuaweiPoller extends BasePoller {
         }
         const ssh = new SshPoller(this.device.ipAddress, this.device.sshCredential);
 
-        // Run summary first (required), then verbose (optional, for descriptions + sent prefixes).
-        // Sequential to avoid opening 2 SSH connections simultaneously on large devices (NE8K etc.)
-        // Timeout 30s — NE8K with many peers can return large output slowly.
-        const summaryOutput = await ssh.exec('display bgp peer', 30000);
-        const verboseOutput = await ssh.exec('display bgp peer verbose', 30000).catch(() => '');
+        // '| no-more' disables VRP pager so full output is returned in one shot.
+        // Timeout 60s — NE8K with hundreds of peers has large output.
+        // Sequential: verbose is optional (descriptions + sent pfx), skip if slow.
+        const summaryOutput = await ssh.exec('display bgp peer | no-more', 60000);
+        const verboseOutput = await ssh.exec('display bgp peer verbose | no-more', 45000).catch(() => '');
 
         const descMap = parseHuaweiDescriptions(verboseOutput);
         const sentMap = parseHuaweiPrefixSent(verboseOutput);
