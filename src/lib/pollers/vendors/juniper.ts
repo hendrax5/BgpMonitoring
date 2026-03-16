@@ -35,18 +35,21 @@ export class JuniperPoller extends BasePoller {
                     ? 'Established'
                     : stateStr;
 
-                // Uptime: 'Last' field is 1–2 tokens immediately before State col
-                // When Established, state col has format "Establ" or "1/5/5/0"
-                // 'Last' could be "3d4h", "00:10:30", "3d" or "3d 4h" (split tokens!)
-                // Try: combine parts[-3] + parts[-2] to handle two-token Last
+                // Single token hh:mm:ss (Juniper standard) or MikroTik-style "3d 4h" (two tokens).
+                // ONLY combine two tokens if prevToken looks like a time component (has w/d/h/m/s),
+                // NOT a plain integer like the Flaps column (e.g. "129" + "8:02:46" = wrong).
                 let uptime: number | undefined;
                 if (bgpState === 'Established') {
                     const lastSingle = parts[parts.length - 2] || '';
-                    const lastDouble = (parts[parts.length - 3] ?? '') + lastSingle;
-                    // Prefer combined if parseBgpUptime returns more seconds
                     const t1 = parseBgpUptime(lastSingle);
-                    const t2 = parseBgpUptime(lastDouble);
-                    uptime = Math.max(t1, t2) || undefined;
+                    const prevToken = parts[parts.length - 3] ?? '';
+                    const isTimeComponent = (s: string) => /[wdhms]/.test(s) && !/^\d+$/.test(s);
+                    if (isTimeComponent(prevToken) && isTimeComponent(lastSingle)) {
+                        const t2 = parseBgpUptime(prevToken + lastSingle);
+                        uptime = Math.max(t1, t2) || undefined;
+                    } else {
+                        uptime = t1 || undefined;
+                    }
                 }
 
                 // Accepted prefix count: from show bgp summary last col when Established (format: Active/Received/Accepted/Damped)

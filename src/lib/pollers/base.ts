@@ -62,8 +62,8 @@ export abstract class BasePoller {
 
     /**
      * Enrich SSH-parsed peer states with SNMP BGP4-MIB data.
-     * - Uptime: SNMP bgpPeerFsmEstablishedTime overrides SSH only if SSH uptime is missing.
-     *   (SSH uptime is now extracted directly — use it as primary, SNMP as fallback)
+     * - Uptime: SNMP bgpPeerFsmEstablishedTime is the PRIMARY source (direct MIB value, accurate).
+     *   SSH-parsed uptime is used only as fallback when SNMP is unavailable.
      * - Prefix counts: SNMP only as fallback when SSH = 0
      */
     protected async enrichWithSnmp(peers: BgpPeerState[]): Promise<BgpPeerState[]> {
@@ -79,8 +79,9 @@ export abstract class BasePoller {
             for (const peer of peers) {
                 const s = stats.get(peer.peerIp);
                 if (!s) continue;
-                // Use SNMP uptime only when SSH did not provide one
-                if (peer.uptime === undefined && s.uptime !== undefined) peer.uptime = s.uptime;
+                // SNMP uptime is PRIMARY — overwrite SSH-derived uptime when available
+                // bgpPeerFsmEstablishedTime (OID 1.3.6.1.2.1.15.3.1.16) is exact and authoritative.
+                if (s.uptime !== undefined) peer.uptime = s.uptime;
                 if (peer.acceptedPrefixes === 0 && s.acceptedPrefixes !== undefined)
                     peer.acceptedPrefixes = s.acceptedPrefixes;
                 if (peer.advertisedPrefixes === 0 && s.advertisedPrefixes !== undefined)
