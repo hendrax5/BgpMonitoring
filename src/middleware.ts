@@ -8,11 +8,28 @@ const JWT_SECRET = new TextEncoder().encode(
 
 const COOKIE_NAME = 'bgp_session';
 
-const PUBLIC_ROUTES = ['/login', '/register'];
+const PUBLIC_ROUTES = ['/login'];
 const PUBLIC_PREFIXES = ['/_next', '/favicon', '/api/public', '/api/debug-login', '/api/auth'];
+
+/** Build a same-protocol redirect URL to avoid HTTP→HTTPS issues behind Traefik */
+function sameProtoRedirect(request: NextRequest, pathname: string): NextResponse {
+    // Use nextUrl.clone() which preserves the protocol exactly as Next.js sees it.
+    // Do NOT use `new URL(path, request.url)` — request.url may resolve to HTTPS
+    // when Traefik sets x-forwarded-proto:https on internal HTTP connections.
+    const url = request.nextUrl.clone();
+    url.pathname = pathname;
+    url.search = '';
+    return NextResponse.redirect(url);
+}
 
 export async function middleware(request: NextRequest) {
     const { pathname } = request.nextUrl;
+
+    // /register is disabled — redirect to login here in middleware
+    // (avoids server component redirect() which can generate HTTPS URLs)
+    if (pathname === '/register' || pathname.startsWith('/register/')) {
+        return sameProtoRedirect(request, '/login');
+    }
 
     // Allow public routes and static assets
     const isPublic =
@@ -24,7 +41,7 @@ export async function middleware(request: NextRequest) {
 
     if (!isPublic) {
         if (!token) {
-            return NextResponse.redirect(new URL('/login', request.url));
+            return sameProtoRedirect(request, '/login');
         }
 
         try {
@@ -39,17 +56,17 @@ export async function middleware(request: NextRequest) {
             return NextResponse.next({ request: { headers: requestHeaders } });
         } catch {
             // Token invalid/expired — clear cookie and redirect
-            const response = NextResponse.redirect(new URL('/login', request.url));
+            const response = sameProtoRedirect(request, '/login');
             response.cookies.delete(COOKIE_NAME);
             return response;
         }
     }
 
-    // Redirect authenticated users away from login/register
-    if ((pathname === '/login' || pathname === '/register') && token) {
+    // Redirect authenticated users away from login
+    if (pathname === '/login' && token) {
         try {
             await jwtVerify(token, JWT_SECRET);
-            return NextResponse.redirect(new URL('/', request.url));
+            return sameProtoRedirect(request, '/');
         } catch {
             // Invalid token — allow access to login
         }
