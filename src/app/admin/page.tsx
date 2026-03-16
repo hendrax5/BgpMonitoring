@@ -4,6 +4,7 @@ import { redis } from '@/lib/redis';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import Link from 'next/link';
+import { DeleteTenantForm } from '@/app/admin/components/DeleteTenantForm';
 
 async function createTenant(formData: FormData) {
     'use server';
@@ -226,15 +227,11 @@ export default async function AdminPage() {
                                                         Kelola
                                                     </Link>
                                                     {t.slug !== 'platform-admin' && (
-                                                        <form action={deleteTenant}
-                                                            onSubmit={(e) => { if (!confirm(`Hapus tenant "${t.name}"? Semua data akan terhapus.`)) e.preventDefault(); }}>
-                                                            <input type="hidden" name="tenantId" value={t.id} />
-                                                            <button type="submit"
-                                                                className="text-xs px-2.5 py-1 rounded-lg"
-                                                                style={{ color: '#f43f5e', border: '1px solid rgba(244,63,94,0.3)' }}>
-                                                                Hapus
-                                                            </button>
-                                                        </form>
+                                                        <DeleteTenantForm
+                                                            tenantId={t.id}
+                                                            tenantName={t.name}
+                                                            deleteTenant={deleteTenant}
+                                                        />
                                                     )}
                                                 </div>
                                             </td>
