@@ -10,8 +10,8 @@ export class DanosPoller extends BasePoller {
         const ssh = new SshPoller(this.device.ipAddress, this.device.sshCredential);
 
         const [summaryOutput, neighborOutput] = await Promise.all([
-            ssh.exec('show bgp summary'),
-            ssh.exec('show bgp neighbors').catch(() => ''),
+            ssh.exec('vtysh -c "show bgp summary"').catch(() => ssh.exec('vtysh -c "show ip bgp summary"')),
+            ssh.exec('vtysh -c "show bgp neighbors"').catch(() => ssh.exec('vtysh -c "show ip bgp neighbors"')).catch(() => ''),
         ]);
 
         const descMap = parseFrrDescriptions(neighborOutput);
@@ -49,7 +49,8 @@ export class DanosPoller extends BasePoller {
         if (!this.device.sshCredential) return [];
         try {
             const ssh = new SshPoller(this.device.ipAddress, this.device.sshCredential);
-            const output = await ssh.exec('show log | match bgp');
+            let output = await ssh.exec('vtysh -c "show log | match bgp"').catch(() => '');
+            if (!output) output = await ssh.exec('cat /var/log/messages | grep bgp').catch(() => '');
             return parseFrrLog(output);
         } catch { return []; }
     }
@@ -58,7 +59,7 @@ export class DanosPoller extends BasePoller {
         if (!this.device.sshCredential) return 'Error: No SSH Credentials';
         try {
             const ssh = new SshPoller(this.device.ipAddress, this.device.sshCredential);
-            return await ssh.exec('show bgp summary');
+            return await ssh.exec('vtysh -c "show bgp summary"').catch(() => ssh.exec('vtysh -c "show ip bgp summary"'));
         } catch (err: any) {
             return `Error fetching live sessions: ${err.message}`;
         }

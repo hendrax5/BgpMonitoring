@@ -9,6 +9,7 @@ function getConfigCommand(vendor: string): string {
     if (v === 'huawei') return 'display current-configuration';
     // Default to Cisco / Juniper / VyOS / Danos style. (Some Juniper use 'show configuration | display set')
     if (v === 'juniper') return 'show configuration | display set';
+    if (v === 'vyos' || v === 'danos') return '/bin/vbash -ic "show configuration commands"';
     return 'show running-config';
 }
 
