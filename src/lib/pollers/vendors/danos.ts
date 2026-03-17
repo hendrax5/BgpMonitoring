@@ -23,16 +23,20 @@ export class DanosPoller extends BasePoller {
             if (line.includes('Neighbor') && line.includes('State/PfxRcd')) { headerFound = true; continue; }
             if (!headerFound) continue;
             const parts = line.trim().split(/\s+/);
-            if (parts.length >= 9 && parts[0].match(/^[0-9a-fA-F:.]+$/)) {
+            if (parts.length >= 10 && parts[0].match(/^[0-9a-fA-F:.]+$/)) {
                 const peerIp = parts[0];
                 const remoteAsn = parseInt(parts[2], 10);
-                const stateOrPfx = parts[parts.length - 1];
-                // FRR: Neighbor V AS MsgRcvd MsgSent TblVer InQ OutQ Up/Down State/PfxRcd
-                // Up/Down is at index 8 (0-based)
+                
                 const upDownStr = parts[8] || '';
+                const stateOrPfx = parts[9] || '';
+
                 let bgpState = 'Idle', acceptedPrefixes = 0;
-                if (/^\d+$/.test(stateOrPfx)) { bgpState = 'Established'; acceptedPrefixes = parseInt(stateOrPfx, 10); }
-                else { bgpState = stateOrPfx; }
+                if (/^\d+$/.test(stateOrPfx)) { 
+                    bgpState = 'Established'; 
+                    acceptedPrefixes = parseInt(stateOrPfx, 10); 
+                } else { 
+                    bgpState = stateOrPfx.replace(/[^a-zA-Z]/g, ''); 
+                }
                 const uptime = bgpState === 'Established' ? (parseBgpUptime(upDownStr) || undefined) : undefined;
                 peers.push({
                     peerIp, remoteAsn, bgpState, acceptedPrefixes,

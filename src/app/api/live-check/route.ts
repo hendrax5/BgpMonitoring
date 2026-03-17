@@ -38,18 +38,18 @@ function getCommand(vendor: string, checkType: CheckType, peerIp: string): strin
             'logs':              `/log print where message~"${peerIp}" without-paging`,
         },
         vyos: {
-            'bgp-status':        `show bgp neighbors ${peerIp}`,
-            'received-routes':   `show bgp neighbors ${peerIp} received-routes`,
-            'advertised-routes': `show bgp neighbors ${peerIp} advertised-routes`,
-            'ping':              `ping ${peerIp} count 5`,
-            'logs':              `show log | match ${peerIp}`,
+            'bgp-status':        `vtysh -c "show bgp neighbors ${peerIp}"`,
+            'received-routes':   `vtysh -c "show bgp neighbors ${peerIp} received-routes"`,
+            'advertised-routes': `vtysh -c "show bgp neighbors ${peerIp} advertised-routes"`,
+            'ping':              `/bin/ping -c 5 ${peerIp}`,
+            'logs':              `cat /var/log/messages | grep ${peerIp} | tail -n 50`,
         },
         danos: {
-            'bgp-status':        `show bgp neighbors ${peerIp}`,
-            'received-routes':   `show bgp neighbors ${peerIp} received-routes`,
-            'advertised-routes': `show bgp neighbors ${peerIp} advertised-routes`,
-            'ping':              `ping ${peerIp} count 5`,
-            'logs':              `show log | match ${peerIp}`,
+            'bgp-status':        `/bin/vbash -ic "show bgp neighbors ${peerIp}"`,
+            'received-routes':   `/bin/vbash -ic "show bgp neighbors ${peerIp} received-routes"`,
+            'advertised-routes': `/bin/vbash -ic "show bgp neighbors ${peerIp} advertised-routes"`,
+            'ping':              `/bin/ping -c 5 ${peerIp}`,
+            'logs':              `cat /var/log/messages | grep ${peerIp} | tail -n 50`,
         },
     };
     return cmds[vendor?.toLowerCase()]?.[checkType] ?? `show bgp neighbors ${peerIp}`;
