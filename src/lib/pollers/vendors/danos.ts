@@ -10,8 +10,8 @@ export class DanosPoller extends BasePoller {
         const ssh = new SshPoller(this.device.ipAddress, this.device.sshCredential);
 
         const [summaryOutput, neighborOutput] = await Promise.all([
-            ssh.exec('vtysh -c "show bgp summary"').catch(() => ssh.exec('vtysh -c "show ip bgp summary"')),
-            ssh.exec('vtysh -c "show bgp neighbors"').catch(() => ssh.exec('vtysh -c "show ip bgp neighbors"')).catch(() => ''),
+            ssh.exec('/bin/vbash -ic "show bgp summary"').catch(() => ssh.exec('/bin/vbash -ic "show ip bgp summary"')),
+            ssh.exec('/bin/vbash -ic "show bgp neighbors"').catch(() => ssh.exec('/bin/vbash -ic "show ip bgp neighbors"')).catch(() => ''),
         ]);
 
         const descMap = parseFrrDescriptions(neighborOutput);
@@ -49,8 +49,8 @@ export class DanosPoller extends BasePoller {
         if (!this.device.sshCredential) return [];
         try {
             const ssh = new SshPoller(this.device.ipAddress, this.device.sshCredential);
-            let output = await ssh.exec('vtysh -c "show log | match bgp"').catch(() => '');
-            if (!output) output = await ssh.exec('cat /var/log/messages | grep bgp').catch(() => '');
+            let output = await ssh.exec('/bin/vbash -ic "show log | match bgp"').catch(() => '');
+            if (!output) output = await ssh.exec('/bin/vbash -ic "show log bgp"').catch(() => '');
             return parseFrrLog(output);
         } catch { return []; }
     }
@@ -59,7 +59,7 @@ export class DanosPoller extends BasePoller {
         if (!this.device.sshCredential) return 'Error: No SSH Credentials';
         try {
             const ssh = new SshPoller(this.device.ipAddress, this.device.sshCredential);
-            return await ssh.exec('vtysh -c "show bgp summary"').catch(() => ssh.exec('vtysh -c "show ip bgp summary"'));
+            return await ssh.exec('/bin/vbash -ic "show bgp summary"').catch(() => ssh.exec('/bin/vbash -ic "show ip bgp summary"'));
         } catch (err: any) {
             return `Error fetching live sessions: ${err.message}`;
         }
