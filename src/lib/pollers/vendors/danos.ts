@@ -10,8 +10,8 @@ export class DanosPoller extends BasePoller {
         const ssh = new SshPoller(this.device.ipAddress, this.device.sshCredential);
 
         const [summaryOutput, neighborOutput] = await Promise.all([
-            ssh.exec('/bin/vbash -ic "show bgp summary"').catch(() => ssh.exec('/bin/vbash -ic "show ip bgp summary"')),
-            ssh.exec('/bin/vbash -ic "show bgp neighbors"').catch(() => ssh.exec('/bin/vbash -ic "show ip bgp neighbors"')).catch(() => ''),
+            ssh.exec('/bin/vbash -ic "show protocols bgp ipv4 unicast summary"').catch(() => ''),
+            ssh.exec('/bin/vbash -ic "show protocols bgp ipv4 unicast neighbors"').catch(() => ''),
         ]);
 
         const descMap = parseFrrDescriptions(neighborOutput);
@@ -63,7 +63,7 @@ export class DanosPoller extends BasePoller {
         if (!this.device.sshCredential) return 'Error: No SSH Credentials';
         try {
             const ssh = new SshPoller(this.device.ipAddress, this.device.sshCredential);
-            return await ssh.exec('/bin/vbash -ic "show bgp summary"').catch(() => ssh.exec('/bin/vbash -ic "show ip bgp summary"'));
+            return await ssh.exec('/bin/vbash -ic "show protocols bgp ipv4 unicast summary"').catch(() => '');
         } catch (err: any) {
             return `Error fetching live sessions: ${err.message}`;
         }
