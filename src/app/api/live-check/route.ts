@@ -52,7 +52,7 @@ function getCommand(vendor: string, checkType: CheckType, peerIp: string): strin
             'logs':              `show log | match ${peerIp}`,
         },
     };
-    return cmds[vendor]?.[checkType] ?? `show bgp neighbors ${peerIp}`;
+    return cmds[vendor?.toLowerCase()]?.[checkType] ?? `show bgp neighbors ${peerIp}`;
 }
 
 export async function POST(req: NextRequest) {
