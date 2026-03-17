@@ -9,10 +9,23 @@ export class DanosPoller extends BasePoller {
         }
         const ssh = new SshPoller(this.device.ipAddress, this.device.sshCredential);
 
-        const [summaryOutput, neighborOutput] = await Promise.all([
-            ssh.exec('/bin/vbash -ic "show protocols bgp ipv4 unicast summary"').catch(() => ''),
-            ssh.exec('/bin/vbash -ic "show protocols bgp ipv4 unicast neighbors"').catch(() => ''),
-        ]);
+        const fetchSummary = async () => {
+            let out = await ssh.exec('/opt/vyatta/bin/vyatta-op-cmd-wrapper show protocols bgp ipv4 unicast summary').catch(() => '');
+            if (!out.includes('Neighbor')) out = await ssh.exec('/bin/vbash -ic "show protocols bgp ipv4 unicast summary"').catch(() => '');
+            if (!out.includes('Neighbor')) out = await ssh.exec('vtysh -c "show bgp summary"').catch(() => '');
+            if (!out.includes('Neighbor')) out = await ssh.exec('sgvyatta -c "show protocols bgp ipv4 unicast summary"').catch(() => '');
+            return out;
+        };
+
+        const fetchNeighbors = async () => {
+            let out = await ssh.exec('/opt/vyatta/bin/vyatta-op-cmd-wrapper show protocols bgp ipv4 unicast neighbors').catch(() => '');
+            if (!out.includes('BGP neighbor is')) out = await ssh.exec('/bin/vbash -ic "show protocols bgp ipv4 unicast neighbors"').catch(() => '');
+            if (!out.includes('BGP neighbor is')) out = await ssh.exec('vtysh -c "show bgp neighbors"').catch(() => '');
+            if (!out.includes('BGP neighbor is')) out = await ssh.exec('sgvyatta -c "show protocols bgp ipv4 unicast neighbors"').catch(() => '');
+            return out;
+        };
+
+        const [summaryOutput, neighborOutput] = await Promise.all([ fetchSummary(), fetchNeighbors() ]);
 
         const descMap = parseFrrDescriptions(neighborOutput);
         const sentMap = parseFrrPrefixSent(neighborOutput);
@@ -63,7 +76,11 @@ export class DanosPoller extends BasePoller {
         if (!this.device.sshCredential) return 'Error: No SSH Credentials';
         try {
             const ssh = new SshPoller(this.device.ipAddress, this.device.sshCredential);
-            return await ssh.exec('/bin/vbash -ic "show protocols bgp ipv4 unicast summary"').catch(() => '');
+            let out = await ssh.exec('/opt/vyatta/bin/vyatta-op-cmd-wrapper show protocols bgp ipv4 unicast summary').catch(() => '');
+            if (!out.includes('Neighbor')) out = await ssh.exec('/bin/vbash -ic "show protocols bgp ipv4 unicast summary"').catch(() => '');
+            if (!out.includes('Neighbor')) out = await ssh.exec('vtysh -c "show bgp summary"').catch(() => '');
+            if (!out.includes('Neighbor')) out = await ssh.exec('sgvyatta -c "show protocols bgp ipv4 unicast summary"').catch(() => '');
+            return out || 'Error fetching live sessions: All wrappers failed.';
         } catch (err: any) {
             return `Error fetching live sessions: ${err.message}`;
         }
@@ -88,9 +105,16 @@ export function parseFrrPrefixSent(output: string): Map<string, number> {
     for (const line of output.split('\n')) {
         const neighborMatch = line.match(/BGP neighbor is ([\d.a-fA-F:]+)/);
         if (neighborMatch) currentIp = neighborMatch[1];
-        // FRR: "  Prefixes Current: X sent, Y received"  OR  "Local Policy Denied Prefixes: ..."
-        const sentMatch = line.match(/(\d+)\s+sent/i);
-        if (sentMatch && currentIp) map.set(currentIp, parseInt(sentMatch[1], 10));
+        // FRR: "  Prefixes Current: X sent, Y received"  OR  "Prefixes Current:         X               Y"
+        const prefixMatch = line.match(/Prefixes Current:\s+(\d+)(?:\s+sent)?/i);
+        if (prefixMatch && currentIp) {
+            map.set(currentIp, parseInt(prefixMatch[1], 10));
+        } else {
+            const sentMatch = line.match(/(\d+)\s+sent/i);
+            if (sentMatch && currentIp && !map.has(currentIp)) {
+                map.set(currentIp, parseInt(sentMatch[1], 10));
+            }
+        }
     }
     return map;
 }
