@@ -15,13 +15,13 @@ function isBgpMsg(msg: string) {
 
 // Memory Buffer for Bulk Insert
 interface BufferEvent {
-    tenantId: number;
+    tenantId: string;
     deviceId: number;
     deviceName: string;
     peerIp: string;
     eventType: 'UP' | 'DOWN' | 'INFO';
     message: string;
-    eventTimestamp: Date;
+    fetchedAt: Date;
 }
 let eventBuffer: BufferEvent[] = [];
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
@@ -35,13 +35,13 @@ async function flushEvents() {
     eventBuffer = [];
     
     try {
-        await (prisma as any).historicalEvent.createMany({
+        await (prisma as any).bgpLog.createMany({
             data: toInsert,
             skipDuplicates: true // Avoid exact duplicate spam within the same second
         });
-        console.log(`[Syslog] Bulk inserted ${toInsert.length} BGP events to database.`);
+        console.log(`[Syslog] Bulk inserted ${toInsert.length} BGP logs to database.`);
     } catch (err) {
-        console.error('[Syslog] Failed to bulk insert events:', err);
+        console.error('[Syslog] Failed to bulk insert logs:', err);
     }
 }
 
@@ -121,7 +121,7 @@ export function startSyslogServer() {
             peerIp: parsed.peerIp,
             eventType: parsed.eventType,
             message: cleanMsg.substring(0, 255), // safety limit
-            eventTimestamp: new Date()
+            fetchedAt: new Date()
         });
     });
 
