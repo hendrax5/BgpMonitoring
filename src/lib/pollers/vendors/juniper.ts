@@ -9,9 +9,10 @@ export class JuniperPoller extends BasePoller {
         const ssh = new SshPoller(this.device.ipAddress, this.device.sshCredential);
 
         // Run summary + full neighbor data (for Active prefixes + Advertised prefixes) in parallel
+        // Juniper with 300+ peers takes significant time. Extended timeout to 60s.
         const [summaryOutput, neighborOutput] = await Promise.all([
-            ssh.exec('show bgp summary'),
-            ssh.exec('show bgp neighbor | match "(Peer:|Active prefixes:|Advertised prefixes:|Description:)"').catch(() => ''),
+            ssh.exec('show bgp summary | no-more', 60000),
+            ssh.exec('show bgp neighbor | match "(Peer:|Active prefixes:|Advertised prefixes:|Description:)" | no-more', 60000).catch(() => ''),
         ]);
 
         const descMap = parseJuniperDescriptions(neighborOutput);
@@ -69,7 +70,7 @@ export class JuniperPoller extends BasePoller {
                 });
             }
         }
-        return this.enrichWithSnmp(peers);
+        return peers;
     }
 
     override async fetchBgpLog(): Promise<BgpEventLog[]> {
@@ -85,7 +86,7 @@ export class JuniperPoller extends BasePoller {
         if (!this.device.sshCredential) return 'Error: No SSH Credentials';
         try {
             const ssh = new SshPoller(this.device.ipAddress, this.device.sshCredential);
-            return await ssh.exec('show bgp summary');
+            return await ssh.exec('show bgp summary | no-more');
         } catch (err: any) {
             return `Error fetching live sessions: ${err.message}`;
         }

@@ -23,6 +23,7 @@ model Tenant {
   deviceCredentials DeviceCredential[]
   historicalEvents HistoricalEvent[]
   bgpLogs          BgpLog[]
+  configBackups    DeviceConfigBackup[]
   settings         AppSettings[]
 
   @@map("tenants")
@@ -109,6 +110,7 @@ model RouterDevice {
   snmpPort        Int      @default(161) @map("snmp_port")
   sshCredentialId Int?     @map("ssh_credential_id")
   sshCredential   DeviceCredential? @relation(fields: [sshCredentialId], references: [id], onDelete: SetNull)
+  configBackups   DeviceConfigBackup[]
   createdAt       DateTime @default(now()) @map("created_at")
 
   @@unique([tenantId, hostname])
@@ -157,4 +159,37 @@ model GlobalSettings {
   value String
 
   @@map("global_settings")
+}
+
+// ─── Configuration Management ──────────────────────────────────────────────────
+model DeviceConfigBackup {
+  id            Int      @id @default(autoincrement())
+  tenantId      String   @map("tenant_id")
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  deviceId      Int      @map("device_id")
+  routerDevice  RouterDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  configText    String   @db.Text
+  configHash    String   @map("config_hash") // MD5 or SHA256 of configText
+  isCompliant   Boolean  @default(true) @map("is_compliant")
+  complianceLog String?  @map("compliance_log") @db.Text
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId])
+  @@index([deviceId])
+  @@index([configHash])
+  @@map("device_config_backup")
+}
+
+model CompliancePolicy {
+  id           Int      @id @default(autoincrement())
+  name         String   @unique
+  description  String?
+  vendorMatch  String   @map("vendor_match") // 'all', 'cisco', 'mikrotik', dll
+  mustMatch    Boolean  @default(true) @map("must_match") // jika true, regex HARUS ada di config. Jika false, TIDAK BOLEH ada.
+  regexPattern String   @map("regex_pattern")
+  severity     String   @default("warning") // 'warning', 'critical'
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@map("compliance_policy")
 }

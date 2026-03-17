@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense } from 'react';
+import { Suspense, useTransition } from 'react';
 
 interface Props {
     devices: string[];
@@ -9,6 +9,7 @@ interface Props {
 
 function DashboardFiltersInner({ devices }: Props) {
     const router = useRouter();
+    const [isPending, startTransition] = useTransition();
     const searchParams = useSearchParams();
     const currentDevice = searchParams.get('device') || 'all';
     const initSearch = searchParams.get('search') || '';
@@ -20,7 +21,9 @@ function DashboardFiltersInner({ devices }: Props) {
         else params.set('device', value);
         // Also clear status when switching device
         params.delete('status');
-        router.push(`/?${params.toString()}`);
+        startTransition(() => {
+            router.push(`/?${params.toString()}`);
+        });
     };
 
     return (
@@ -38,27 +41,38 @@ function DashboardFiltersInner({ devices }: Props) {
                             const params = new URLSearchParams(searchParams.toString());
                             if (val) params.set('search', val);
                             else params.delete('search');
-                            router.push(`/?${params.toString()}`);
+                            startTransition(() => {
+                                router.push(`/?${params.toString()}`);
+                            });
                         }, 400);
                     }}
-                    className="form-input text-sm py-1.5"
+                    className={`form-input text-sm py-1.5 ${isPending ? 'opacity-50 pointer-events-none' : ''}`}
                     style={{ width: '180px' }}
+                    disabled={isPending}
                 />
             </div>
 
             <span className="text-xs font-medium flex-shrink-0" style={{ color: '#475569' }}>Device:</span>
-            <select
-                id="device-filter"
-                value={currentDevice}
-                onChange={(e) => handleDeviceChange(e.target.value)}
-                className="form-select text-sm"
-                style={{ width: 'auto', minWidth: '140px' }}
-            >
-                <option value="all">All Devices</option>
-                {devices.map(d => (
-                    <option key={d} value={d}>{d}</option>
-                ))}
-            </select>
+            <div className="relative">
+                <select
+                    id="device-filter"
+                    value={currentDevice}
+                    onChange={(e) => handleDeviceChange(e.target.value)}
+                    className={`form-select text-sm ${isPending ? 'opacity-50 pointer-events-none' : ''}`}
+                    style={{ width: 'auto', minWidth: '140px' }}
+                    disabled={isPending}
+                >
+                    <option value="all">All Devices</option>
+                    {devices.map(d => (
+                        <option key={d} value={d}>{d}</option>
+                    ))}
+                </select>
+                {isPending && (
+                    <div className="absolute top-1/2 right-7 -translate-y-1/2 pointer-events-none">
+                        <span className="material-symbols-outlined text-[#13a4ec] animate-spin text-[16px]">refresh</span>
+                    </div>
+                )}
+            </div>
         </div>
     );
 }

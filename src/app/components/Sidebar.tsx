@@ -8,6 +8,7 @@ const navItems = [
   { href: '/', label: 'Overview', icon: 'dashboard' },
   { href: '/reports', label: 'BGP Events', icon: 'manage_history' },
   { href: '/settings', label: 'Settings', icon: 'settings' },
+  { href: '/config-management', label: 'Config Mgmt', icon: 'settings_backup_restore' }
 ];
 
 const adminItems = [

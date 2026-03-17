@@ -101,67 +101,81 @@ export abstract class BasePoller {
     }
 
     /**
-     * SNMP First, SSH Fallback strategy (Preferred entry point for sync.ts).
-     * 1. If pollMethod is 'snmp', execute only SNMP.
-     * 2. Otherwise try SNMP first (fastest, uses GETBULK, no auth delay).
-     * 3. If SNMP succeeds and returns peers, return them.
-     * 4. If SNMP fails (e.g timeout/filtered) or returns 0 peers (MIB unsupported),
-     *    fallback to executing the native SSH routine.
+     * HYBRID POLLING (SNMP + SSH)
+     * SNMP for absolute true state and instant uptime (status cepat).
+     * SSH for rich details like description, prefix limits, routing instances (detail).
      */
-    async pollWithSnmpFallback(): Promise<BgpPeerState[]> {
+    async pollHybrid(): Promise<BgpPeerState[]> {
         if (this.device.pollMethod === 'snmp') {
-            return this.pollSnmpOnly();
+            return await this.pollSnmpOnly();
+        }
+        if (this.device.pollMethod === 'ssh') {
+            return await this.poll();
         }
 
-        // --- SNMP First Attempt ---
-        let snmpPeers: BgpPeerState[] = [];
-        if (this.device.snmpCommunity && this.device.pollMethod !== 'ssh') {
-            try {
-                snmpPeers = await this.pollSnmpOnly();
-            } catch (err: any) {
-                console.log(`⚠️ [${this.device.hostname}] SNMP First failed (${err.message.slice(0, 80)}), falling back to SSH`);
-            }
+        // --- Hybrid Execution (Parallel) ---
+        const [snmpResult, sshResult] = await Promise.allSettled([
+            this.device.snmpCommunity ? this.pollSnmpOnly() : Promise.resolve([]),
+            this.poll()
+        ]);
 
-            if (snmpPeers.length > 0) {
-                return snmpPeers; // Success with SNMP
-            }
+        let snmpPeers: BgpPeerState[] = snmpResult.status === 'fulfilled' ? snmpResult.value : [];
+        let sshPeers: BgpPeerState[] = sshResult.status === 'fulfilled' ? sshResult.value : [];
 
-            console.log(`⚠️ [${this.device.hostname}] SNMP First returned 0 peers, falling back to SSH`);
+        // If SNMP completely failed or MIB missing (0 peers), fallback purely to SSH
+        if (snmpPeers.length === 0) {
+            console.log(`⚠️ [${this.device.hostname}] SNMP returned 0 peers or failed. Falling back purely to SSH.`);
+            if (sshResult.status === 'rejected') throw sshResult.reason;
+            return sshPeers;
         }
 
-        // --- SSH Fallback Attempt ---
-        return await this.poll();
-    }
+        // If SSH completely failed, return whatever SNMP got
+        if (sshPeers.length === 0) {
+            console.log(`⚠️ [${this.device.hostname}] SSH failed or returned 0 peers. Using pure SNMP data.`);
+            return snmpPeers;
+        }
 
-    /**
-     * Enrich SSH-parsed peer states with SNMP BGP4-MIB data.
-     * - Uptime: SNMP bgpPeerFsmEstablishedTime is the PRIMARY source (direct MIB value, accurate).
-     *   SSH-parsed uptime is used only as fallback when SNMP is unavailable.
-     * - Prefix counts: SNMP only as fallback when SSH = 0
-     */
-    protected async enrichWithSnmp(peers: BgpPeerState[]): Promise<BgpPeerState[]> {
-        if (!this.device.snmpCommunity || !peers.length) return peers;
-        const snmpPoller = new SnmpPoller(
-            this.device.ipAddress,
-            this.device.snmpCommunity,
-            this.device.snmpVersion ?? 'v2c',
-            this.device.snmpPort ?? 161
-        );
-        try {
-            const stats = await snmpPoller.getBgpPeerStats();
-            for (const peer of peers) {
-                const s = stats.get(peer.peerIp);
-                if (!s) continue;
-                // SNMP uptime is PRIMARY — overwrite SSH-derived uptime when available
-                // bgpPeerFsmEstablishedTime (OID 1.3.6.1.2.1.15.3.1.16) is exact and authoritative.
-                if (s.uptime !== undefined) peer.uptime = s.uptime;
-                if (peer.acceptedPrefixes === 0 && s.acceptedPrefixes !== undefined)
-                    peer.acceptedPrefixes = s.acceptedPrefixes;
-                if (peer.advertisedPrefixes === 0 && s.advertisedPrefixes !== undefined)
-                    peer.advertisedPrefixes = s.advertisedPrefixes;
-            }
-        } catch { /* SNMP unreachable — keep SSH values */ }
-        finally { snmpPoller.close(); }
-        return peers;
+        // --- Merge SNMP and SSH ---
+        // Create an O(1) map for SSH peers
+        const sshMap = new Map<string, BgpPeerState>();
+        for (const p of sshPeers) {
+            sshMap.set(p.peerIp, p);
+        }
+
+        const merged: BgpPeerState[] = [];
+
+        // Base peers array driven by SNMP truth
+        for (const s of snmpPeers) {
+            const sshPeer = sshMap.get(s.peerIp);
+            
+            // Merge logic: SNMP wins state and uptime, SSH wins descriptions and prefixes (if snmp lacks them)
+            merged.push({
+                peerIp: s.peerIp,
+                remoteAsn: s.remoteAsn,
+                bgpState: s.bgpState,
+                uptime: s.bgpState === 'Established' ? s.uptime : undefined,
+                
+                // Inherit prefix counting from SNMP first, fallback to SSH detail
+                acceptedPrefixes: s.acceptedPrefixes && s.acceptedPrefixes > 0 
+                    ? s.acceptedPrefixes 
+                    : (sshPeer?.acceptedPrefixes ?? 0),
+                advertisedPrefixes: s.advertisedPrefixes && s.advertisedPrefixes > 0 
+                    ? s.advertisedPrefixes 
+                    : (sshPeer?.advertisedPrefixes ?? 0),
+                    
+                // Inherit text description from SSH
+                description: sshPeer?.description,
+            });
+
+            // Remove from SSH map to keep track of any un-merged peers
+            sshMap.delete(s.peerIp);
+        }
+
+        // If there are leftover SSH peers (hidden in VRF not seen by SNMP Default Community), add them too
+        for (const leftover of sshMap.values()) {
+            merged.push(leftover);
+        }
+
+        return merged;
     }
 }

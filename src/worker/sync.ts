@@ -217,7 +217,7 @@ async function pollDevice(
 
     let activeSessions: BgpPeerState[] = [];
     try {
-        activeSessions = await poller.pollWithSnmpFallback();
+        activeSessions = await poller.pollHybrid();
     } catch (error: any) {
         console.log(`⏭️ Skipping sync for ${device.hostname} due to polling error: ${error.message}`);
         return;

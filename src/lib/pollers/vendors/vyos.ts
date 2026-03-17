@@ -42,7 +42,7 @@ export class VyosPoller extends BasePoller {
                 });
             }
         }
-        return this.enrichWithSnmp(peers);
+        return peers;
     }
 
     override async fetchBgpLog(): Promise<BgpEventLog[]> {
