@@ -1,11 +1,12 @@
 import { prisma } from '@/lib/prisma';
 import { requireSession } from '@/lib/auth';
 import { can } from '@/lib/rbac';
-import { addRouterDevice, updateRouterDevice, deleteRouterDevice, getTelegramSettings, saveTelegramSettings } from '@/app/actions/settings';
+import { addRouterDevice, updateRouterDevice, deleteRouterDevice, getTelegramSettings, saveTelegramSettings, getBackupSettings, saveBackupSettings } from '@/app/actions/settings';
 import { addUser, updateUser, deleteUser } from '@/app/actions/users';
 import SyncButton from '@/app/settings/components/SyncButton';
 import RouterTestButton from '@/app/settings/components/RouterTestButton';
 import ImportDevicesButton from '@/app/settings/components/ImportDevicesButton';
+import SubmitButton from '@/app/components/SubmitButton';
 import { revalidatePath } from 'next/cache';
 
 async function saveBranding(formData: FormData) {
@@ -47,6 +48,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     const editUserObj = editUserId ? users.find((u: any) => u.id === editUserId) : null;
 
     const telegram = await getTelegramSettings();
+    const backupSettings = await getBackupSettings();
 
     // Per-tenant branding settings
     const brandingRows = await (prisma as any).appSettings.findMany({
@@ -193,10 +195,10 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 
 
                                     <div className="flex gap-2 pt-2">
-                                        <button type="submit" className="flex-1 py-2.5 text-sm font-bold rounded-lg text-white"
-                                            style={{ backgroundColor: '#13a4ec' }}>
+                                        <SubmitButton className="flex-1 py-2.5 text-sm font-bold rounded-lg text-white"
+                                            style={{ backgroundColor: '#13a4ec' }} pendingText={editDevice ? 'Updating...' : 'Saving...'}>
                                             {editDevice ? 'Update Router' : 'Save Router'}
-                                        </button>
+                                        </SubmitButton>
                                         {editDevice && (
                                             <a href="/settings" className="flex items-center justify-center px-4 py-2.5 text-sm rounded-lg"
                                                 style={{ backgroundColor: 'rgba(255,255,255,0.06)', color: '#94a3b8' }}>
@@ -391,10 +393,10 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                                     )}
 
                                     <div className="pt-2 flex gap-2">
-                                        <button type="submit" className="flex-1 py-2 rounded-lg text-sm font-bold transition-colors"
-                                            style={{ backgroundColor: '#13a4ec', color: 'white' }}>
+                                        <SubmitButton className="flex-1 py-2 rounded-lg text-sm font-bold transition-colors"
+                                            style={{ backgroundColor: '#13a4ec', color: 'white' }} pendingText={editUserObj ? 'Updating...' : 'Saving...'}>
                                             {editUserObj ? 'Update User' : 'Save User'}
-                                        </button>
+                                        </SubmitButton>
                                         {editUserObj && (
                                             <a href="/settings" className="flex-1 py-2 text-center rounded-lg text-sm font-bold transition-colors"
                                                 style={{ backgroundColor: 'rgba(255,255,255,0.07)', color: 'white' }}>
@@ -529,10 +531,10 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                                     </p>
                                 </div>
 
-                                <button type="submit" className="w-full py-2.5 text-sm font-bold rounded-lg text-white"
-                                    style={{ backgroundColor: '#13a4ec' }}>
+                                <SubmitButton className="w-full py-2.5 text-sm font-bold rounded-lg text-white"
+                                    style={{ backgroundColor: '#13a4ec' }} pendingText="Menyimpan...">
                                     Simpan Konfigurasi
-                                </button>
+                                </SubmitButton>
                             </form>
                         </div>
                     </div>
@@ -591,16 +593,16 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                                         className="form-input w-full" />
                                     <p className="text-[11px] mt-1" style={{ color: '#475569' }}>Tampil di sidebar sebagai nama utama logo</p>
                                 </div>
-                                <button type="submit"
+                                <SubmitButton
                                     className="w-full py-2 text-sm font-bold rounded-lg text-white"
-                                    style={{ backgroundColor: '#13a4ec' }}>
+                                    style={{ backgroundColor: '#13a4ec' }} pendingText="Menyimpan...">
                                     Simpan Branding
-                                </button>
+                                </SubmitButton>
                             </form>
                         </div>
-                        <div className="md:col-span-2 card p-5">
+                        <div className="md:col-span-1 card p-5 flex flex-col">
                             <h4 className="font-bold text-white mb-3">Preview Sidebar</h4>
-                            <div className="flex items-center gap-3 p-4 rounded-xl" style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px dashed rgba(255,255,255,0.1)' }}>
+                            <div className="flex items-center gap-3 p-4 rounded-xl flex-1" style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px dashed rgba(255,255,255,0.1)' }}>
                                 <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#13a4ec' }}>
                                     <span className="material-symbols-outlined text-white text-lg">hub</span>
                                 </div>
@@ -612,6 +614,32 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                             <p className="text-[11px] mt-3" style={{ color: '#475569' }}>
                                 Perubahan akan tampil setelah menyimpan dan refresh halaman.
                             </p>
+                        </div>
+                        
+                        <div className="md:col-span-1 card p-5 flex flex-col justify-between">
+                            <div>
+                                <h4 className="font-bold text-white mb-1">Konfigurasi Backup</h4>
+                                <p className="text-xs mb-4" style={{ color: '#64748b' }}>Interval otomatis worker menarik konfigurasi router.</p>
+                            </div>
+                            <form action={async (formData: FormData) => {
+                                'use server';
+                                await saveBackupSettings(formData);
+                            }} className="space-y-3">
+                                <div>
+                                    <label className="block text-xs font-medium mb-1" style={{ color: '#64748b' }}>Interval Cron Job</label>
+                                    <select name="backup_interval_cron" defaultValue={backupSettings.intervalCron} className="form-input w-full">
+                                        <option value="0 * * * *">Setiap Jam (1 Jam)</option>
+                                        <option value="0 */2 * * *">Setiap 2 Jam</option>
+                                        <option value="0 */6 * * *">Setiap 6 Jam</option>
+                                        <option value="0 */12 * * *">Setiap 12 Jam</option>
+                                        <option value="0 0 * * *">Setiap Hari (00:00)</option>
+                                    </select>
+                                </div>
+                                <SubmitButton className="w-full py-2 text-sm font-bold rounded-lg text-white"
+                                    style={{ backgroundColor: '#10b981' }} pendingText="Menyimpan...">
+                                    Simpan Interval
+                                </SubmitButton>
+                            </form>
                         </div>
                     </div>
                 </div>

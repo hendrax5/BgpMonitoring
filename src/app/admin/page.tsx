@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import Link from 'next/link';
 import { DeleteTenantForm } from '@/app/admin/components/DeleteTenantForm';
+import SubmitButton from '@/app/components/SubmitButton';
 
 async function createTenant(formData: FormData) {
     'use server';
@@ -39,7 +40,7 @@ async function createTenant(formData: FormData) {
             }
         }
     });
-    revalidatePath('/admin');
+    redirect('/admin');
 }
 
 async function deleteTenant(formData: FormData) {
@@ -56,7 +57,7 @@ async function deleteTenant(formData: FormData) {
 
     // Delete tenant (cascades: users, devices, sessions, events)
     await (prisma as any).tenant.delete({ where: { id: tenantId } });
-    revalidatePath('/admin');
+    redirect('/admin');
 }
 
 export default async function AdminPage() {
@@ -158,12 +159,12 @@ export default async function AdminPage() {
                             <input type="password" name="adminPassword" required minLength={8} placeholder="Min 8 chars" className="form-input w-full" />
                         </div>
                         <div className="col-span-2 pt-2 border-t" style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
-                            <button type="submit"
+                            <SubmitButton pendingText="Creating..."
                                 className="px-6 py-2.5 rounded-xl font-bold text-white"
                                 style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}>
                                 <span className="material-symbols-outlined text-sm align-middle mr-1">add_circle</span>
                                 Create Tenant
-                            </button>
+                            </SubmitButton>
                         </div>
                     </form>
                 </div>

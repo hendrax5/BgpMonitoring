@@ -191,3 +191,27 @@ export async function removeSession(formData: FormData) {
     }
     revalidatePath('/');
 }
+
+export async function getBackupSettings(): Promise<{ intervalCron: string }> {
+    const session = await requireSession();
+    const db = scopedDb(session.tenantId);
+    const setting = await db.appSettings.findFirst({ where: { key: 'backup_interval_cron' } } as any);
+    return { intervalCron: setting?.value || '0 * * * *' }; // Default 1 Hour
+}
+
+export async function saveBackupSettings(formData: FormData) {
+    const session = await requireSession();
+    if (!can(session.role, 'device.manage')) {
+        redirect('/settings?error=Permission+denied+to+configure+backups.');
+    }
+    const db = scopedDb(session.tenantId);
+    const intervalCron = (formData.get('backup_interval_cron') as string || '0 * * * *').trim();
+
+    await db.appSettings.upsert({ 
+        where: { key: 'backup_interval_cron' }, 
+        create: { key: 'backup_interval_cron', value: intervalCron }, 
+        update: { value: intervalCron } 
+    } as any);
+
+    revalidatePath('/settings');
+}

@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { can } from '@/lib/rbac';
 import bcrypt from 'bcryptjs';
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 
 export async function addUser(formData: FormData) {
     const session = await requireSession();
@@ -23,11 +24,12 @@ export async function addUser(formData: FormData) {
             data: { username, password: hashedPassword, role, tenantId: session.tenantId }
         });
         revalidatePath('/settings');
-        return { success: true };
     } catch (e: any) {
+        if (e.message && e.message.includes('NEXT_REDIRECT')) throw e;
         if (e.code === 'P2002') return { error: 'Username already exists' };
         return { error: 'Error creating user' };
     }
+    redirect('/settings');
 }
 
 export async function updateUser(formData: FormData) {
@@ -50,11 +52,12 @@ export async function updateUser(formData: FormData) {
             data
         });
         revalidatePath('/settings');
-        return { success: true };
     } catch (e: any) {
+        if (e.message && e.message.includes('NEXT_REDIRECT')) throw e;
         if (e.code === 'P2002') return { error: 'Username already exists' };
         return { error: 'Error updating user' };
     }
+    redirect('/settings');
 }
 
 export async function deleteUser(id: number) {
@@ -67,8 +70,9 @@ export async function deleteUser(id: number) {
 
         await (prisma as any).appUser.deleteMany({ where: { id, tenantId: session.tenantId } });
         revalidatePath('/settings');
-        return { success: true };
-    } catch {
+    } catch (e: any) {
+        if (e.message && e.message.includes('NEXT_REDIRECT')) throw e;
         return { error: 'Error deleting user' };
     }
+    redirect('/settings');
 }
