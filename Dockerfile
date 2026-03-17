@@ -3,7 +3,7 @@ FROM node:20-alpine AS deps
 RUN apk add --no-cache libc6-compat openssl python3 make g++
 WORKDIR /app
 COPY package.json package-lock.json* ./
-RUN npm install
+RUN npm config set fetch-retry-maxtimeout 600000 -g && npm ci --no-audit --no-fund --prefer-offline
 
 # Stage 2: Builder
 FROM node:20-alpine AS builder
