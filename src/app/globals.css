@@ -136,7 +136,7 @@ body {
 
 .data-table td {
   padding: 0.875rem 1.25rem;
-  border-bottom: 1px solid var(--color-border));
+  border-bottom: 1px solid var(--color-border);
   font-size: 0.875rem;
   vertical-align: middle;
 }
