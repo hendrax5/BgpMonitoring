@@ -34,22 +34,26 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
           <DashboardFilters devices={devices} />
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          <a href="/settings" className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg"
-            style={{ color: '#64748b', border: '1px solid rgba(255,255,255,0.07)' }}>
-            <span className="material-symbols-outlined text-sm">settings</span>
+          <a href="/settings" className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg focus-ring"
+            style={{ color: '#64748b', border: '1px solid rgba(255,255,255,0.07)' }}
+            aria-label="Go to Settings"
+          >
+            <span className="material-symbols-outlined text-sm" aria-hidden="true">settings</span>
             Settings
           </a>
           <form action={logout}>
-            <button type="submit" className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg"
-              style={{ color: '#64748b', border: '1px solid rgba(255,255,255,0.07)' }}>
-              <span className="material-symbols-outlined text-sm">logout</span>
+            <button type="submit" className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg focus-ring"
+              style={{ color: '#64748b', border: '1px solid rgba(255,255,255,0.07)' }}
+              aria-label="Sign out of your account"
+            >
+              <span className="material-symbols-outlined text-sm" aria-hidden="true">logout</span>
               Sign Out
             </button>
           </form>
         </div>
       </header>
 
-      <main className="p-6 animate-fade-in">
+      <main className="p-6 animate-fade-in" aria-label="BGP monitoring dashboard">
         <Suspense fallback={<DashboardSkeleton />}>
           <DashboardContent session={session} searchParams={params} />
         </Suspense>

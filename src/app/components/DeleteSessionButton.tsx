@@ -1,4 +1,5 @@
 'use client';
+
 import { removeSession } from '@/app/actions/settings';
 
 export default function DeleteSessionButton({ serverName, deviceId, peerIp }: {
@@ -11,13 +12,17 @@ export default function DeleteSessionButton({ serverName, deviceId, peerIp }: {
             <input type="hidden" name="peerIp" value={peerIp} />
             <button
                 type="submit"
-                title="Hapus session dari dashboard"
-                onClick={(e) => { if (!confirm(`Hapus peer ${peerIp} dari dashboard?`)) e.preventDefault(); }}
-                className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg"
-                style={{ color: '#f43f5e', border: '1px solid rgba(244,63,94,0.3)', background: 'transparent', cursor: 'pointer' }}
+                className="btn-danger"
+                title="Remove this peer from the dashboard (does not affect router configuration)"
+                aria-label={`Remove peer ${peerIp} from dashboard`}
+                onClick={(e) => {
+                    if (!confirm(`Remove peer ${peerIp} from the dashboard?\n\nThis only affects the monitoring view — it does not change any router configuration.`)) {
+                        e.preventDefault();
+                    }
+                }}
             >
-                <span className="material-symbols-outlined text-sm">delete</span>
-                Hapus
+                <span className="material-symbols-outlined text-sm" aria-hidden="true">delete</span>
+                Remove
             </button>
         </form>
     );

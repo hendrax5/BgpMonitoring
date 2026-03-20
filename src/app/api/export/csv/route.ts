@@ -8,6 +8,11 @@ export async function GET(request: NextRequest) {
     const session = await requireSession();
     const isSuperAdmin = session.role === 'superadmin';
 
+    const { searchParams } = request.nextUrl;
+    const deviceFilter  = searchParams.get('device');   // e.g. "router-jkt-01"
+    const statusFilter  = searchParams.get('status');   // "Established" | "down" | null
+    const searchFilter  = searchParams.get('search');   // free-text search
+
     // Read all BGP sessions from Redis (same as dashboard)
     const redisPattern = isSuperAdmin ? 'BgpSession:*' : `BgpSession:${session.tenantId}:*`;
     const allKeys = await redis.keys(redisPattern).catch(() => [] as string[]);
@@ -22,12 +27,27 @@ export async function GET(request: NextRequest) {
             .filter(Boolean) || [];
     }
 
-    // Apply status filter from query param (?status=down)
-    const statusFilter = request.nextUrl.searchParams.get('status');
+    // Apply device filter
+    if (deviceFilter && deviceFilter !== 'all') {
+        sessions = sessions.filter(s => s.deviceName === deviceFilter);
+    }
+
+    // Apply status filter — accept "down", "Established", or legacy "up"
     if (statusFilter === 'down') {
         sessions = sessions.filter(s => s.bgpState !== 'Established');
-    } else if (statusFilter === 'up') {
+    } else if (statusFilter === 'Established' || statusFilter === 'up') {
         sessions = sessions.filter(s => s.bgpState === 'Established');
+    }
+
+    // Apply free-text search (same logic as dashboard)
+    if (searchFilter) {
+        const q = searchFilter.toLowerCase();
+        sessions = sessions.filter(s =>
+            s.peerIp.toLowerCase().includes(q) ||
+            s.remoteAsn.toString().includes(q) ||
+            (s.peerDescription || '').toLowerCase().includes(q) ||
+            s.deviceName.toLowerCase().includes(q)
+        );
     }
 
     // Enrich with ASN organization names
@@ -35,7 +55,7 @@ export async function GET(request: NextRequest) {
     const asnRecords = uniqueAsns.length > 0
         ? await prisma.asnDictionary.findMany({ where: { asn: { in: uniqueAsns } } })
         : [];
-    const asnMap = new Map(asnRecords.map(r => [r.asn.toString(), r.organizationName]));
+    const asnMap = new Map(asnRecords.map((r: any) => [r.asn.toString(), r.organizationName]));
 
     // Sort: DOWN first, then by stateChangedAt
     sessions.sort((a, b) => {
@@ -74,7 +94,9 @@ export async function GET(request: NextRequest) {
     });
 
     const csvString = Papa.unparse(csvData);
-    const filename = `bgp_peers_${new Date().toISOString().split('T')[0]}.csv`;
+    // Include device name in filename if filtered, so it's clear what was exported
+    const deviceSuffix = deviceFilter && deviceFilter !== 'all' ? `_${deviceFilter}` : '';
+    const filename = `bgp_peers${deviceSuffix}_${new Date().toISOString().split('T')[0]}.csv`;
 
     return new NextResponse(csvString, {
         headers: {
