@@ -2,21 +2,31 @@ import { getHistoricalEvents, getTopFlappingPeers } from '@/app/actions/reports'
 import { prisma } from '@/lib/prisma';
 import { redis } from '@/lib/redis';
 import Link from 'next/link';
+import { requireSession } from '@/lib/auth';
 
 export default async function ReportsPage(props: { searchParams: Promise<{ [key: string]: string | undefined }> }) {
+    const session = await requireSession();
+    const isSuperAdmin = session.role === 'superadmin';
+    const tenantId = isSuperAdmin ? undefined : session.tenantId;
     const searchParams = await props.searchParams;
 
     const startDate = searchParams.start || undefined;
     const endDate = searchParams.end || undefined;
-    const filterAsn = searchParams.asn || undefined;
+    const filterDevice = searchParams.device || undefined;
     const search = searchParams.search || undefined;
+    const page = parseInt(searchParams.page || '1');
+    const limit = 50;
 
-    // Apply search to ASN filter if provided from dashboard deep-link
-    const effectiveAsn = search && /^\d+$/.test(search) ? search : filterAsn;
-
-    const events = await getHistoricalEvents({ startDate, endDate, asn: effectiveAsn, search });
-    const topFlap = await getTopFlappingPeers(startDate, endDate);
-    const allAsns = await prisma.asnDictionary.findMany({ orderBy: { organizationName: 'asc' } });
+    const { events, totalCount } = await getHistoricalEvents({ startDate, endDate, device: filterDevice, search, tenantId, page, limit });
+    const topFlap = await getTopFlappingPeers(startDate, endDate, tenantId);
+    
+    const allDevices = await prisma.routerDevice.findMany({ 
+        where: isSuperAdmin ? {} : { tenantId: session.tenantId },
+        orderBy: { hostname: 'asc' },
+        select: { hostname: true }
+    });
+    const uniqueDevices = Array.from(new Set(allDevices.map((d: any) => d.hostname))) as string[];
+    const totalPages = Math.max(1, Math.ceil(totalCount / limit));
 
     // Summary counts
     const last24h = new Date(Date.now() - 86400000);
@@ -67,8 +77,8 @@ export default async function ReportsPage(props: { searchParams: Promise<{ [key:
                     <p className="text-xs" style={{ color: '#64748b' }}>Real-time monitoring and historical analysis of BGP state changes.</p>
                 </div>
                 <div className="flex items-center gap-2">
-                    <a href={`/api/export/csv?start=${startDate || ''}&end=${endDate || ''}&asn=${effectiveAsn || ''}`}
-                        className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg"
+                    <a href={`/api/export/csv?start=${startDate || ''}&end=${endDate || ''}&device=${filterDevice || ''}`}
+                        className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg transition hover:brightness-110"
                         style={{ backgroundColor: '#13a4ec', color: 'white' }}>
                         <span className="material-symbols-outlined text-sm">download</span>
                         Export Logs
@@ -137,12 +147,10 @@ export default async function ReportsPage(props: { searchParams: Promise<{ [key:
                             />
                         </div>
                         <div className="flex gap-2 flex-wrap">
-                            <select name="asn" defaultValue={effectiveAsn || ''} className="form-select" style={{ width: 'auto', minWidth: '160px' }}>
-                                <option value="">All ASNs</option>
-                                {allAsns.map(a => (
-                                    <option key={a.asn.toString()} value={a.asn.toString()}>
-                                        AS{a.asn.toString()} – {a.organizationName}
-                                    </option>
+                            <select name="device" defaultValue={filterDevice || ''} className="form-select font-medium" style={{ width: 'auto', minWidth: '160px', backgroundColor: '#0f172a' }}>
+                                <option value="">All Devices</option>
+                                {uniqueDevices.map(hostname => (
+                                    <option key={hostname} value={hostname}>{hostname}</option>
                                 ))}
                             </select>
                             <input type="date" name="start" defaultValue={startDate} className="form-input" style={{ width: 'auto' }} />
@@ -153,7 +161,7 @@ export default async function ReportsPage(props: { searchParams: Promise<{ [key:
                                 style={{ border: '1px solid rgba(255,255,255,0.07)', color: '#64748b' }}>Clear</Link>
                         </div>
                     </form>
-                    {(search || effectiveAsn) && (
+                    {(search || filterDevice) && (
                         <div className="flex gap-2 mt-3 flex-wrap items-center">
                             <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: '#475569' }}>Active:</span>
                             {search && (
@@ -162,10 +170,10 @@ export default async function ReportsPage(props: { searchParams: Promise<{ [key:
                                     Search: {search}
                                 </span>
                             )}
-                            {effectiveAsn && (
+                            {filterDevice && (
                                 <span className="flex items-center gap-1 text-xs font-medium px-2.5 py-0.5 rounded-full"
                                     style={{ backgroundColor: 'rgba(19,164,236,0.12)', color: '#13a4ec' }}>
-                                    AS: {effectiveAsn}
+                                    Device: {filterDevice}
                                 </span>
                             )}
                         </div>
@@ -198,16 +206,16 @@ export default async function ReportsPage(props: { searchParams: Promise<{ [key:
                                     const sevLabel = isDown ? 'Critical' : isUp ? 'Recovery' : 'Info';
 
                                     return (
-                                        <tr key={ev.eventId.toString()}>
+                                        <tr key={ev.eventId.toString()} className="hover:bg-slate-800/40 transition-colors">
                                             <td>
-                                                <div className="flex items-center gap-2">
-                                                    <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: sevColor }}></span>
-                                                    <span className="text-xs font-bold uppercase" style={{ color: sevColor }}>{sevLabel}</span>
+                                                <div className="flex items-center gap-2.5">
+                                                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: sevColor, boxShadow: `0 0 8px ${sevColor}99` }}></div>
+                                                    <span className="text-[11px] font-black uppercase tracking-wider" style={{ color: sevColor }}>{sevLabel}</span>
                                                 </div>
                                             </td>
                                             <td>
-                                                <div className="text-sm font-medium text-white">{ev.eventTimestamp.toLocaleString()}</div>
-                                                <div className="text-xs" style={{ color: '#64748b' }}>{fmtRelative(ev.eventTimestamp)}</div>
+                                                <div className="text-sm font-bold text-[#e2e8f0]">{ev.eventTimestamp.toLocaleString()}</div>
+                                                <div className="text-[11px] uppercase tracking-wider mt-0.5" style={{ color: '#64748b' }}>{fmtRelative(ev.eventTimestamp)}</div>
                                             </td>
                                             <td>
                                                 <Link href={`/peers/${encodeURIComponent(ev.peerIp)}`} className="text-sm font-bold hover:opacity-75" style={{ color: '#13a4ec' }}>
@@ -251,15 +259,29 @@ export default async function ReportsPage(props: { searchParams: Promise<{ [key:
                         </table>
                     </div>
                     <div className="px-5 py-3 flex items-center justify-between border-t" style={{ borderColor: 'rgba(255,255,255,0.07)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
-                        <span className="text-xs" style={{ color: '#475569' }}>
-                            Showing <span className="font-bold text-white">{events.length}</span> events
+                        <span className="text-xs" style={{ color: '#94a3b8' }}>
+                            Showing page <span className="font-bold text-white">{page}</span> of <span className="font-bold text-white">{totalPages}</span> ({totalCount} total)
                         </span>
-                        <div className="flex gap-2">
-                            <a href={`/api/export/pdf?start=${startDate || ''}&end=${endDate || ''}&asn=${effectiveAsn || ''}`}
+                        <div className="flex gap-2 items-center">
+                            {page > 1 && (
+                                <a href={`/reports?page=${page - 1}&start=${startDate || ''}&end=${endDate || ''}&device=${filterDevice || ''}&search=${search || ''}`}
+                                   className="text-xs px-3 py-1.5 rounded font-bold hover:bg-slate-800 transition shadow-sm"
+                                   style={{ border: '1px solid rgba(255,255,255,0.1)', color: '#e2e8f0' }}>
+                                    Previous
+                                </a>
+                            )}
+                            {page < totalPages && (
+                                <a href={`/reports?page=${page + 1}&start=${startDate || ''}&end=${endDate || ''}&device=${filterDevice || ''}&search=${search || ''}`}
+                                   className="text-xs px-3 py-1.5 rounded font-bold hover:bg-slate-800 transition shadow-sm"
+                                   style={{ border: '1px solid rgba(255,255,255,0.1)', color: '#e2e8f0' }}>
+                                    Next
+                                </a>
+                            )}
+                            <a href={`/api/export/pdf?start=${startDate || ''}&end=${endDate || ''}&device=${filterDevice || ''}`}
                                 target="_blank"
-                                className="text-xs px-3 py-1 rounded"
-                                style={{ border: '1px solid rgba(255,255,255,0.07)', color: '#64748b' }}>
-                                Print PDF
+                                className="text-xs px-3 py-1.5 rounded ml-2 font-bold bg-[#0d1520] hover:brightness-110 transition"
+                                style={{ border: '1px solid rgba(19,164,236,0.3)', color: '#13a4ec' }}>
+                                Export PDF
                             </a>
                         </div>
                     </div>

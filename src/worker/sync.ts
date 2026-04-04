@@ -142,7 +142,7 @@ async function pollTenant(tenantId: string, tenantSlug: string) {
     let devices: any[] = [];
     try {
         devices = await (prisma as any).routerDevice.findMany({
-            where: { tenantId },
+            where: { tenantId, isBgpMonitoring: true },
             include: { sshCredential: true }
         });
     } catch (e) {

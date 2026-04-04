@@ -35,7 +35,11 @@ export default function ConfigDashboard() {
         }
     };
 
-    if (loading) return <div className="text-center py-10">Loading Dashboard...</div>;
+    if (loading) return (
+        <div className="flex justify-center items-center py-24">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+        </div>
+    );
 
     const totalDevices = devices.length;
     const compliant = devices.filter(d => d.isCompliant === true).length;
@@ -44,40 +48,70 @@ export default function ConfigDashboard() {
 
     return (
         <div>
-            <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-semibold mb-4 text-gray-800">Overview</h2>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
+                <h2 className="text-2xl font-bold text-white tracking-tight">Overview</h2>
                 <button
                     onClick={triggerBackupNow}
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium shadow-sm transition-colors flex items-center gap-2"
+                    className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl font-bold shadow-lg shadow-blue-600/20 transition-all flex items-center gap-2 hover:scale-[1.02] active:scale-95 border border-blue-500/50"
                 >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
                     Trigger Backup Now
                 </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                <div className="bg-slate-50 border border-slate-200 p-5 rounded-xl shadow-sm">
-                    <h3 className="text-sm font-medium text-slate-500 uppercase">Total Devices</h3>
-                    <p className="text-3xl font-bold text-slate-800 mt-2">{totalDevices}</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                {/* Total Devices */}
+                <div className="relative group bg-[#0f172a]/60 backdrop-blur-md border border-zinc-800/80 p-6 rounded-2xl shadow-xl transition-all hover:bg-[#0f172a] overflow-hidden">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 blur-3xl rounded-full pointer-events-none group-hover:bg-blue-500/10 transition-all duration-500" />
+                    <h3 className="text-sm font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-2">
+                        <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" /></svg>
+                        Total
+                    </h3>
+                    <p className="text-4xl font-black text-white mt-4">{totalDevices}</p>
                 </div>
-                <div className="bg-green-50 border border-green-200 p-5 rounded-xl shadow-sm">
-                    <h3 className="text-sm font-medium text-green-600 uppercase">Compliant Configs</h3>
-                    <p className="text-3xl font-bold text-green-700 mt-2">{compliant}</p>
+
+                {/* Compliant */}
+                <div className="relative group bg-[#0f172a]/60 backdrop-blur-md border border-emerald-900/30 p-6 rounded-2xl shadow-xl transition-all hover:bg-[#0f172a] overflow-hidden ring-1 ring-emerald-500/0 hover:ring-emerald-500/20">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 blur-3xl rounded-full pointer-events-none group-hover:bg-emerald-500/10 transition-all duration-500" />
+                    <h3 className="text-sm font-bold text-emerald-500 uppercase tracking-wider flex items-center gap-2">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        Compliant
+                    </h3>
+                    <p className="text-4xl font-black text-white mt-4">{compliant}</p>
                 </div>
-                <div className="bg-red-50 border border-red-200 p-5 rounded-xl shadow-sm">
-                    <h3 className="text-sm font-medium text-red-600 uppercase">Non-Compliant</h3>
-                    <p className="text-3xl font-bold text-red-700 mt-2">{nonCompliant}</p>
+
+                {/* Non-Compliant */}
+                <div className="relative group bg-[#0f172a]/60 backdrop-blur-md border border-red-900/30 p-6 rounded-2xl shadow-xl transition-all hover:bg-[#0f172a] overflow-hidden ring-1 ring-red-500/0 hover:ring-red-500/20">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/5 blur-3xl rounded-full pointer-events-none group-hover:bg-red-500/10 transition-all duration-500" />
+                    <h3 className="text-sm font-bold text-red-500 uppercase tracking-wider flex items-center gap-2">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                        Failed
+                    </h3>
+                    <p className="text-4xl font-black text-white mt-4">{nonCompliant}</p>
                 </div>
-                <div className="bg-orange-50 border border-orange-200 p-5 rounded-xl shadow-sm">
-                    <h3 className="text-sm font-medium text-orange-600 uppercase">Missing Backup</h3>
-                    <p className="text-3xl font-bold text-orange-700 mt-2">{noBackup}</p>
+
+                {/* Missing Backup */}
+                <div className="relative group bg-[#0f172a]/60 backdrop-blur-md border border-orange-900/30 p-6 rounded-2xl shadow-xl transition-all hover:bg-[#0f172a] overflow-hidden ring-1 ring-orange-500/0 hover:ring-orange-500/20">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/5 blur-3xl rounded-full pointer-events-none group-hover:bg-orange-500/10 transition-all duration-500" />
+                    <h3 className="text-sm font-bold text-orange-400 uppercase tracking-wider flex items-center gap-2">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        No Backup
+                    </h3>
+                    <p className="text-4xl font-black text-white mt-4">{noBackup}</p>
                 </div>
             </div>
 
-            <p className="text-sm text-gray-500">
-                Automatic scheduled backup runs every midnight (00:00). 
-                Changes are only saved if the configuration text differs from the last backup.
-            </p>
+            <div className="bg-[#0f172a]/40 border border-zinc-800/60 p-5 rounded-xl">
+                <div className="flex gap-4 items-start">
+                    <div className="p-2 bg-blue-500/10 rounded-lg shrink-0">
+                        <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    </div>
+                    <p className="text-sm text-zinc-400 leading-relaxed font-medium">
+                        Automatic scheduled backup runs every midnight (00:00). 
+                        Changes are only committed to the database if the retrieved configuration text differs from the most recent backup signature.
+                    </p>
+                </div>
+            </div>
         </div>
     );
 }

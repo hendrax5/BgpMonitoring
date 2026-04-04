@@ -1,13 +1,18 @@
 export async function getHistoricalEvents(searchParams: {
     startDate?: string;
     endDate?: string;
-    asn?: string;
     device?: string;
     search?: string;
+    tenantId?: string;
+    page: number;
+    limit: number;
 }) {
     const { prisma } = await import('@/lib/prisma');
 
     let whereClause: any = {};
+    if (searchParams.tenantId) {
+        whereClause.tenantId = searchParams.tenantId;
+    }
 
     if (searchParams.startDate && searchParams.endDate) {
         whereClause.eventTimestamp = {
@@ -16,9 +21,7 @@ export async function getHistoricalEvents(searchParams: {
         };
     }
 
-    if (searchParams.asn) {
-        whereClause.asn = BigInt(searchParams.asn);
-    }
+
 
     if (searchParams.device) {
         whereClause.deviceName = { contains: searchParams.device };
@@ -33,18 +36,23 @@ export async function getHistoricalEvents(searchParams: {
         ];
     }
 
+    const totalCount = await prisma.historicalEvent.count({ where: whereClause });
+
     const events = await prisma.historicalEvent.findMany({
         where: whereClause,
-        orderBy: { eventTimestamp: 'desc' }
+        orderBy: { eventTimestamp: 'desc' },
+        skip: (searchParams.page - 1) * searchParams.limit,
+        take: searchParams.limit
     });
 
-    return events;
+    return { events, totalCount };
 }
 
-export async function getTopFlappingPeers(startDate?: string, endDate?: string) {
+export async function getTopFlappingPeers(startDate?: string, endDate?: string, tenantId?: string) {
     const { prisma } = await import('@/lib/prisma');
 
     let whereClause: any = { eventType: 'DOWN' };
+    if (tenantId) whereClause.tenantId = tenantId;
 
     if (startDate && endDate) {
         whereClause.eventTimestamp = {

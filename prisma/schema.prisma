@@ -111,6 +111,8 @@ model RouterDevice {
   sshCredentialId Int?     @map("ssh_credential_id")
   sshCredential   DeviceCredential? @relation(fields: [sshCredentialId], references: [id], onDelete: SetNull)
   configBackups   DeviceConfigBackup[]
+  isBgpMonitoring Boolean  @default(true) @map("is_bgp_monitoring")
+  isConfigBackup  Boolean  @default(true) @map("is_config_backup")
   createdAt       DateTime @default(now()) @map("created_at")
 
   @@unique([tenantId, hostname])
@@ -192,4 +194,17 @@ model CompliancePolicy {
   createdAt    DateTime @default(now()) @map("created_at")
 
   @@map("compliance_policy")
+}
+
+// ─── Universal Vendor Profiles (global) ───────────────────────────────────────
+model VendorProfile {
+  id                 Int      @id @default(autoincrement())
+  vendorName         String   @unique  @map("vendor_name") // e.g. "huawei", "mikrotik", "zte"
+  connectionMode     String   @default("exec") @map("connection_mode") // 'exec' or 'shell'
+  backupCommand      String   @map("backup_command") // e.g. "show running-config"
+  disablePagingCmd   String?  @map("disable_paging_cmd") // e.g. "screen-length 0 disable"
+  regexRemovePattern String?  @map("regex_remove_pattern") // e.g. "^---- More ----$"
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  @@map("vendor_profile")
 }

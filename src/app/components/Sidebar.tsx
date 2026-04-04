@@ -7,7 +7,6 @@ import { Suspense } from 'react';
 const navItems = [
   { href: '/', label: 'Overview', icon: 'dashboard' },
   { href: '/reports', label: 'BGP Event Log', icon: 'manage_history' },
-  { href: '/settings', label: 'Settings', icon: 'settings' },
   { href: '/config-management', label: 'Config Management', icon: 'settings_backup_restore' }
 ];
 

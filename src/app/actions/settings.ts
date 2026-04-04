@@ -29,6 +29,8 @@ export async function addRouterDevice(formData: FormData) {
     const sshUser = (formData.get('sshUser') as string || '').trim();
     const sshPass = (formData.get('sshPass') as string || '').trim();
     const sshPort = parseInt(formData.get('sshPort') as string || '22', 10);
+    const isBgpMonitoring = formData.get('isBgpMonitoring') === 'on';
+    const isConfigBackup = formData.get('isConfigBackup') === 'on';
 
     if (!hostname || !ipAddress || !vendor || !pollMethod) {
         redirect(`/settings?error=${encodeURIComponent('Hostname, IP Address, Vendor, and Polling Method are required.')}`);
@@ -46,7 +48,7 @@ export async function addRouterDevice(formData: FormData) {
         }
 
         await db.routerDevice.create({
-            data: { hostname, ipAddress, vendor, pollMethod, snmpVersion, snmpCommunity, snmpPort, sshCredentialId }
+            data: { hostname, ipAddress, vendor, pollMethod, snmpVersion, snmpCommunity, snmpPort, sshCredentialId, isBgpMonitoring, isConfigBackup }
         });
     } catch (error: any) {
         if (error.message?.includes('NEXT_REDIRECT')) throw error;
@@ -72,6 +74,8 @@ export async function updateRouterDevice(formData: FormData) {
     const sshUser = (formData.get('sshUser') as string || '').trim();
     const sshPass = (formData.get('sshPass') as string || '').trim();
     const sshPort = parseInt(formData.get('sshPort') as string || '22', 10);
+    const isBgpMonitoring = formData.get('isBgpMonitoring') === 'on';
+    const isConfigBackup = formData.get('isConfigBackup') === 'on';
 
     if (!id || !hostname || !ipAddress) {
         redirect(`/settings?error=${encodeURIComponent('Hostname and IP Address are required.')}`);
@@ -91,9 +95,9 @@ export async function updateRouterDevice(formData: FormData) {
             sshCredentialId = cred.id;
         }
 
-        const updateData = { hostname, ipAddress, vendor, pollMethod, snmpVersion, snmpCommunity, snmpPort, sshCredentialId };
+        const updateData = { hostname, ipAddress, vendor, pollMethod, snmpVersion, snmpCommunity, snmpPort, sshCredentialId, isBgpMonitoring, isConfigBackup };
 
-        if (existingRouter.hostname !== hostname) {
+        if (existingRouter.hostname !== hostname || existingRouter.isBgpMonitoring !== isBgpMonitoring) {
             const oldKeys = await redis.keys(`BgpSession:${session.tenantId}:${existingRouter.hostname}:*`);
             if (oldKeys.length > 0) await redis.del(...oldKeys);
         }
@@ -214,4 +218,63 @@ export async function saveBackupSettings(formData: FormData) {
     } as any);
 
     revalidatePath('/settings');
+}
+
+export async function addVendorProfile(formData: FormData) {
+    const session = await requireSession();
+    if (!can(session.role, 'device.manage')) redirect('/settings?error=Permission+denied');
+
+    const vendorName = formData.get('vendorName') as string;
+    const connectionMode = formData.get('connectionMode') as string || 'exec';
+    const backupCommand = formData.get('backupCommand') as string || '';
+    const pagingCmd = formData.get('pagingCmd') as string || '';
+
+    if (!vendorName || !backupCommand) redirect('/settings?error=Vendor+Name+and+Backup+Command+are+required');
+
+    try {
+        await (prisma as any).vendorProfile.create({
+            data: { vendorName, connectionMode, backupCommand, pagingCmd }
+        });
+        revalidatePath('/settings');
+    } catch (error: any) {
+        if (error.message?.includes('NEXT_REDIRECT')) throw error;
+        redirect(`/settings?error=${encodeURIComponent(error.message)}`);
+    }
+}
+
+export async function updateVendorProfile(formData: FormData) {
+    const session = await requireSession();
+    if (!can(session.role, 'device.manage')) redirect('/settings?error=Permission+denied');
+
+    const id = parseInt(formData.get('id') as string);
+    const vendorName = formData.get('vendorName') as string;
+    const connectionMode = formData.get('connectionMode') as string || 'exec';
+    const backupCommand = formData.get('backupCommand') as string || '';
+    const pagingCmd = formData.get('pagingCmd') as string || '';
+
+    if (!id || !vendorName || !backupCommand) redirect('/settings?error=Required+fields+missing');
+
+    try {
+        await (prisma as any).vendorProfile.update({
+            where: { id },
+            data: { vendorName, connectionMode, backupCommand, pagingCmd }
+        });
+        revalidatePath('/settings');
+    } catch (error: any) {
+        if (error.message?.includes('NEXT_REDIRECT')) throw error;
+        redirect(`/settings?error=${encodeURIComponent(error.message)}`);
+    }
+}
+
+export async function deleteVendorProfile(id: number) {
+    const session = await requireSession();
+    if (!can(session.role, 'device.manage')) redirect('/settings?error=Permission+denied');
+    
+    try {
+        await (prisma as any).vendorProfile.delete({ where: { id } });
+        revalidatePath('/settings');
+    } catch (error: any) {
+        if (error.message?.includes('NEXT_REDIRECT')) throw error;
+        redirect(`/settings?error=${encodeURIComponent(error.message)}`);
+    }
 }

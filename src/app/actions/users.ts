@@ -76,3 +76,24 @@ export async function deleteUser(id: number) {
     }
     redirect('/settings');
 }
+
+export async function updateMyProfile(formData: FormData) {
+    const session = await requireSession();
+    const newPassword = formData.get('newPassword') as string;
+    
+    if (!newPassword || newPassword.length < 4) {
+        return { error: 'Password must be at least 4 characters.' };
+    }
+
+    try {
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        await (prisma as any).appUser.update({
+            where: { id: session.userId },
+            data: { password: hashedPassword }
+        });
+        revalidatePath('/settings');
+    } catch (e: any) {
+        return { error: 'Error updating password' };
+    }
+    redirect('/settings?tab=profile&success=1');
+}

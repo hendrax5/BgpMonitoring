@@ -11,9 +11,20 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        // Ambil semua device untuk tenant
+        const requestedTenant = req.nextUrl.searchParams.get('tenantId');
+        const whereClause: any = {};
+        
+        if (session.role === 'superadmin') {
+            if (requestedTenant && requestedTenant !== 'all') {
+                whereClause.tenantId = requestedTenant;
+            }
+        } else {
+            whereClause.tenantId = session.tenantId;
+        }
+
+        // Ambil semua device
         const devices = await prisma.routerDevice.findMany({
-            where: { tenantId: session.tenantId },
+            where: whereClause,
             include: {
                 configBackups: {
                     orderBy: { createdAt: 'desc' },

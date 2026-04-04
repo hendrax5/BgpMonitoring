@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import DashboardFilters from '@/app/components/DashboardFilters';
 import DashboardContent from '@/app/components/DashboardContent';
 import DashboardSkeleton from '@/app/components/DashboardSkeleton';
+import UserProfileDropdown from '@/app/components/UserProfileDropdown';
 
 export default async function Home({ searchParams }: { searchParams: Promise<{ device?: string; sort?: string; status?: string; search?: string }> }) {
   const session = await requireSession();
@@ -34,22 +35,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
           <DashboardFilters devices={devices} />
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          <a href="/settings" className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg focus-ring"
-            style={{ color: '#64748b', border: '1px solid rgba(255,255,255,0.07)' }}
-            aria-label="Go to Settings"
-          >
-            <span className="material-symbols-outlined text-sm" aria-hidden="true">settings</span>
-            Settings
-          </a>
-          <form action={logout}>
-            <button type="submit" className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg focus-ring"
-              style={{ color: '#64748b', border: '1px solid rgba(255,255,255,0.07)' }}
-              aria-label="Sign out of your account"
-            >
-              <span className="material-symbols-outlined text-sm" aria-hidden="true">logout</span>
-              Sign Out
-            </button>
-          </form>
+          <UserProfileDropdown username={session?.username} role={session?.role} />
         </div>
       </header>
 

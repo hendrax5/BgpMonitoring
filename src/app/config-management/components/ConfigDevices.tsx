@@ -32,6 +32,10 @@ const Toast = ({ message, type, onClose }: { message: string, type: 'success' | 
 export default function ConfigDevices({ userRole }: { userRole: string }) {
     const [devices, setDevices] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    
+    // Superadmin Tenant Filter
+    const [tenants, setTenants] = useState<{ id: string; name: string }[]>([]);
+    const [selectedTenant, setSelectedTenant] = useState<string>('all');
 
     const [selectedDevice, setSelectedDevice] = useState<any | null>(null);
     const [deviceBackups, setDeviceBackups] = useState<any[]>([]);
@@ -47,7 +51,8 @@ export default function ConfigDevices({ userRole }: { userRole: string }) {
     const [toast, setToast] = useState<{message: string, type: 'success' | 'error' | 'info'} | null>(null);
 
     const fetchDevices = () => {
-        fetch('/api/config-management/devices')
+        const url = userRole === 'superadmin' ? `/api/config-management/devices?tenantId=${selectedTenant}` : '/api/config-management/devices';
+        fetch(url)
             .then(r => r.json())
             .then(d => {
                 if (d.devices) setDevices(d.devices);
@@ -56,7 +61,15 @@ export default function ConfigDevices({ userRole }: { userRole: string }) {
             .catch(() => setLoading(false));
     };
 
-    useEffect(() => { fetchDevices(); }, []);
+    useEffect(() => { fetchDevices(); }, [selectedTenant, userRole]);
+
+    useEffect(() => {
+        if (userRole === 'superadmin') {
+            fetch('/api/tenants').then(r => r.json()).then(d => {
+                if (d.tenants) setTenants(d.tenants);
+            });
+        }
+    }, [userRole]);
 
     const handleSelectDevice = async (device: any) => {
         setSelectedDevice(device);
@@ -120,10 +133,23 @@ export default function ConfigDevices({ userRole }: { userRole: string }) {
     }
 
     return (
-        <div className="relative min-h-[600px] bg-black text-white p-6 rounded-2xl overflow-hidden shadow-2xl">
+        <div className="relative min-h-[600px] bg-transparent text-white py-2 rounded-2xl overflow-hidden">
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
             {/* Main Area: Fast UI Layout */}
+            {userRole === 'superadmin' && tenants.length > 0 && (
+                <div className="mb-4 flex items-center justify-end gap-3 px-1 animate-fade-in">
+                    <label className="text-xs font-bold text-zinc-400">Filter by Tenant:</label>
+                    <select 
+                        value={selectedTenant}
+                        onChange={e => setSelectedTenant(e.target.value)}
+                        className="bg-[#0a1019] border border-white/10 rounded-xl px-4 py-2 text-xs font-bold text-white shadow-xl focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                    >
+                        <option value="all">🌐 All Organizations</option>
+                        {tenants.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                    </select>
+                </div>
+            )}
             <div className={`transition-all duration-300 ${selectedDevice ? 'mr-0 md:mr-[450px]' : ''}`}>
                 <DeviceTable 
                     devices={devices} 

@@ -1,17 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireSession } from '@/lib/auth';
 import { getHistoricalEvents, getTopFlappingPeers } from '@/app/actions/reports';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { format } from 'date-fns';
 
 export async function GET(request: NextRequest) {
+    const session = await requireSession();
+    const tenantId = session.role === 'superadmin' ? undefined : session.tenantId;
+
     const searchParams = request.nextUrl.searchParams;
     const start = searchParams.get('start') || undefined;
     const end = searchParams.get('end') || undefined;
-    const asn = searchParams.get('asn') || undefined;
+    const device = searchParams.get('device') || undefined;
 
-    const events = await getHistoricalEvents({ startDate: start, endDate: end, asn });
-    const flapStats = await getTopFlappingPeers(start, end);
+    const { events } = await getHistoricalEvents({ startDate: start, endDate: end, device, tenantId, page: 1, limit: 5000 });
+    const flapStats = await getTopFlappingPeers(start, end, tenantId);
 
     // Initialize PDF
     const doc = new jsPDF();
@@ -40,8 +44,8 @@ export async function GET(request: NextRequest) {
     yPos += 7;
     doc.text(`Time Range: ${start ? format(new Date(start), 'PP') : 'Beginning'} - ${end ? format(new Date(end), 'PP') : 'Now'}`, 14, yPos);
     yPos += 7;
-    if (asn) {
-        doc.text(`Filtered by ASN: ${asn}`, 14, yPos);
+    if (device) {
+        doc.text(`Filtered by Device: ${device}`, 14, yPos);
         yPos += 7;
     }
 
@@ -49,7 +53,7 @@ export async function GET(request: NextRequest) {
     yPos += 15;
 
     // --- TOP FLAPPING PEERS TABLE ---
-    if (flapStats.length > 0 && !asn) {
+    if (flapStats.length > 0 && !device) {
         doc.setFontSize(14);
         doc.setTextColor(0, 0, 0);
         doc.text('Top Flapping Peers (Most Drops)', 14, yPos);
