@@ -6,13 +6,15 @@ import { Suspense, useTransition } from 'react';
 
 interface Props {
     devices: string[];
+    tenants?: { id: string; name: string }[];
 }
 
-function DashboardFiltersInner({ devices }: Props) {
+function DashboardFiltersInner({ devices, tenants }: Props) {
     const router = useRouter();
     const [isPending, startTransition] = useTransition();
     const searchParams = useSearchParams();
     const currentDevice = searchParams.get('device') || 'all';
+    const currentTenant = searchParams.get('tenant') || 'all';
     const initSearch = searchParams.get('search') || '';
 
     // useRef-based debounce (avoids polluting window object)
@@ -24,6 +26,18 @@ function DashboardFiltersInner({ devices }: Props) {
         if (value === 'all') params.delete('device');
         else params.set('device', value);
         params.delete('status');
+        startTransition(() => {
+            router.push(`/?${params.toString()}`);
+        });
+    };
+
+    const handleTenantChange = (value: string) => {
+        const params = new URLSearchParams(searchParams.toString());
+        params.delete('sort');
+        params.delete('device'); // force reset device selection
+        params.delete('status');
+        if (value === 'all') params.delete('tenant');
+        else params.set('tenant', value);
         startTransition(() => {
             router.push(`/?${params.toString()}`);
         });
@@ -43,6 +57,7 @@ function DashboardFiltersInner({ devices }: Props) {
 
     const searchId = 'peer-search';
     const deviceId = 'device-filter';
+    const tenantId = 'tenant-filter';
 
     return (
         <div className="flex flex-wrap items-center gap-2" role="search" aria-label="Filter BGP sessions">
@@ -61,6 +76,30 @@ function DashboardFiltersInner({ devices }: Props) {
                     aria-label="Search by IP or AS number"
                 />
             </div>
+
+            {tenants && tenants.length > 0 && (
+                <>
+                    <label htmlFor={tenantId} className="text-xs font-medium flex-shrink-0" style={{ color: '#475569' }}>
+                        Tenant:
+                    </label>
+                    <div className="relative mr-2">
+                        <select
+                            id={tenantId}
+                            value={currentTenant}
+                            onChange={(e) => handleTenantChange(e.target.value)}
+                            className={`form-select text-sm font-bold ${isPending ? 'opacity-50 pointer-events-none' : ''}`}
+                            style={{ width: 'auto', minWidth: '140px' }}
+                            disabled={isPending}
+                            aria-label="Filter by tenant"
+                        >
+                            <option value="all">All Organizations</option>
+                            {tenants.map(t => (
+                                <option key={t.id} value={t.id}>{t.name}</option>
+                            ))}
+                        </select>
+                    </div>
+                </>
+            )}
 
             <label htmlFor={deviceId} className="text-xs font-medium flex-shrink-0" style={{ color: '#475569' }}>
                 Device:
@@ -90,10 +129,10 @@ function DashboardFiltersInner({ devices }: Props) {
     );
 }
 
-export default function DashboardFilters({ devices }: Props) {
+export default function DashboardFilters({ devices, tenants }: Props) {
     return (
         <Suspense fallback={<div className="h-8 w-64 bg-white/5 animate-pulse rounded" aria-label="Loading filters…" />}>
-            <DashboardFiltersInner devices={devices} />
+            <DashboardFiltersInner devices={devices} tenants={tenants} />
         </Suspense>
     );
 }

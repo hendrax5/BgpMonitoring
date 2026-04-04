@@ -7,20 +7,34 @@ import DashboardContent from '@/app/components/DashboardContent';
 import DashboardSkeleton from '@/app/components/DashboardSkeleton';
 import UserProfileDropdown from '@/app/components/UserProfileDropdown';
 
-export default async function Home({ searchParams }: { searchParams: Promise<{ device?: string; sort?: string; status?: string; search?: string }> }) {
+export default async function Home({ searchParams }: { searchParams: Promise<{ device?: string; sort?: string; status?: string; search?: string; tenant?: string }> }) {
   const session = await requireSession();
   const isSuperAdmin = session.role === 'superadmin';
+  
+  // Note: searchParams needs to be awaited per Next.js 15+ for Page props
+  const params = await searchParams;
+
+  let tenants: { id: string; name: string }[] | undefined;
+  const activeTenant = isSuperAdmin && params.tenant && params.tenant !== 'all' ? params.tenant : null;
+
+  if (isSuperAdmin) {
+    tenants = await prisma.tenant.findMany({
+      select: { id: true, name: true },
+      orderBy: { name: 'asc' }
+    });
+  }
 
   // Configured devices strictly for the header dropdown filters (fast DB query)
+  const devicesWhere = isSuperAdmin 
+    ? (activeTenant ? { tenantId: activeTenant } : {})
+    : { tenantId: session.tenantId };
+
   const configuredDevices = await (prisma as any).routerDevice.findMany({
-    where: isSuperAdmin ? {} : { tenantId: session.tenantId },
+    where: devicesWhere,
     select: { hostname: true },
     orderBy: { hostname: 'asc' }
   });
   const devices = Array.from(new Set(configuredDevices.map((d: any) => d.hostname))).sort() as string[];
-
-  // Note: searchParams needs to be awaited per Next.js 15+ for Page props
-  const params = await searchParams;
 
   return (
     <div className="min-h-screen">
@@ -32,7 +46,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
             <h2 className="text-white font-bold text-base">BGP Overview Dashboard</h2>
             <p className="text-xs" style={{ color: '#64748b' }}>Live monitoring ION Network</p>
           </div>
-          <DashboardFilters devices={devices} />
+          <DashboardFilters devices={devices} tenants={tenants} />
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <UserProfileDropdown username={session?.username} role={session?.role} />

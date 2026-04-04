@@ -15,7 +15,7 @@ const getCachedAsnDictionary = unstable_cache(
 
 interface Props {
   session: any;
-  searchParams: { device?: string; sort?: string; status?: string; search?: string };
+  searchParams: { device?: string; sort?: string; status?: string; search?: string; tenant?: string };
 }
 
 /** Build a URL that preserves all current searchParams but overrides specific keys */
@@ -33,11 +33,14 @@ function buildFilterUrl(base: Record<string, string | undefined>, overrides: Rec
 }
 
 export default async function DashboardContent({ session, searchParams }: Props) {
-  const { device, sort, status, search } = searchParams;
+  const { device, sort, status, search, tenant } = searchParams;
   const isSuperAdmin = session.role === 'superadmin';
+  const activeTenant = isSuperAdmin && tenant && tenant !== 'all' ? tenant : null;
 
   // Superadmin: see ALL tenants' sessions; regular user: only their tenant
-  const redisPattern = isSuperAdmin ? 'BgpSession:*' : `BgpSession:${session.tenantId}:*`;
+  const redisPattern = activeTenant 
+    ? `BgpSession:${activeTenant}:*` 
+    : (isSuperAdmin ? 'BgpSession:*' : `BgpSession:${session.tenantId}:*`);
   const allRedisKeys = await redis.keys(redisPattern).catch(() => [] as string[]);
   let allSessionsRaw: any[] = [];
 
@@ -62,7 +65,9 @@ export default async function DashboardContent({ session, searchParams }: Props)
   // Latest BGP events
   const latestDbEvents = await (prisma as any).historicalEvent.findMany({
     where: {
-      ...(isSuperAdmin ? {} : { tenantId: session.tenantId }),
+      ...(isSuperAdmin 
+          ? (activeTenant ? { tenantId: activeTenant } : {}) 
+          : { tenantId: session.tenantId }),
       ...(deviceFilter ? { deviceName: deviceFilter } : {}),
     },
     orderBy: { eventTimestamp: 'desc' },
@@ -125,7 +130,7 @@ export default async function DashboardContent({ session, searchParams }: Props)
   const uptimePct = totalSessions > 0 ? Math.round((upSessions / totalSessions) * 100) : 100;
 
   // Device-preserving filter hrefs for stat cards
-  const baseParams = { device, sort, search, status };
+  const baseParams = { device, sort, search, status, tenant };
   const hrefEstablished = buildFilterUrl(baseParams, { status: 'Established', sort: null });
   const hrefDown = downSessions > 0 ? buildFilterUrl(baseParams, { status: 'down', sort: null }) : buildFilterUrl(baseParams, { status: null, sort: null });
 
