@@ -19,9 +19,22 @@ export default function AlarmManager() {
     const [snoozedUntil, setSnoozedUntil] = useState<number | null>(null);
     const [alarmActive, setAlarmActive] = useState(false);
     const [snoozeRemaining, setSnoozeRemaining] = useState(0);
+    const [activeIndex, setActiveIndex] = useState(0);
     const audioCtxRef = useRef<AudioContext | null>(null);
     const alarmIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+    // Carousel logic
+    useEffect(() => {
+        if (downSessions.length <= 1) {
+            setActiveIndex(0);
+            return;
+        }
+        const tick = setInterval(() => {
+            setActiveIndex(i => (i + 1) % downSessions.length);
+        }, 3500); 
+        return () => clearInterval(tick);
+    }, [downSessions.length]); // reset active index loop if length changes
 
     useEffect(() => {
         const stored = localStorage.getItem(SNOOZE_KEY);
@@ -125,34 +138,41 @@ export default function AlarmManager() {
         );
     }
 
-    // Active NOC Incident Banner
+    const activeSession = downSessions[activeIndex] || downSessions[0];
+
+    // Active NOC Carousel Banner
     return (
-        <div className="w-full bg-[#e11d48] text-white z-[100] sticky top-0 flex items-center shadow-lg h-10 overflow-hidden box-border shrink-0">
-            {/* Urgent Left Badge (static, stays on top of marquee) */}
-            <div className="flex items-center gap-2 px-4 h-full bg-[#be123c] font-bold text-[11px] whitespace-nowrap tracking-wider shrink-0 z-10 relative shadow-[4px_0_12px_rgba(0,0,0,0.15)]">
+        <div className="w-full bg-[#e11d48] text-white z-[100] sticky top-0 flex items-center shadow-[0_4px_16px_rgba(225,29,72,0.3)] h-11 overflow-hidden box-border shrink-0">
+            {/* Urgent Left Badge */}
+            <div className="flex items-center gap-2 px-5 h-full bg-[#be123c] font-bold text-[11px] whitespace-nowrap tracking-wider shrink-0 z-10 relative shadow-[4px_0_12px_rgba(0,0,0,0.15)]">
                 <span className="material-symbols-outlined text-white animate-pulse text-[18px]">warning</span>
                 URGENT: {downCount} DOWN
             </div>
 
-            {/* Marquee Ticker */}
-            <div className="flex-1 relative h-full flex items-center bg-[#e11d48]">
-                <div className="animate-noc-marquee flex gap-16 text-[13px] font-mono tracking-tight text-white/95">
-                    {downSessions.map((s, i) => (
-                        <Link key={i} href={`/peers/${encodeURIComponent(s.peerIp)}`} className="hover:text-white hover:underline transition flex items-center gap-1.5 focus-ring">
-                            <span className="font-bold">{s.peerIp}</span> 
-                            <span className="text-white/70">({s.deviceName})</span> 
-                            <span className="ml-1 bg-black/25 px-1.5 py-0.5 rounded text-[10px] uppercase font-sans font-bold shadow-inner">{s.bgpState}</span>
+            {/* Fade Carousel */}
+            <div className="flex-1 relative h-full flex items-center justify-center bg-[#e11d48] overflow-hidden px-4">
+                {activeSession && (
+                    <div key={activeSession.peerIp + activeIndex} className="animate-fade-in flex items-center gap-2">
+                        <Link href={`/peers/${encodeURIComponent(activeSession.peerIp)}`} className="text-[13px] text-white/95 font-mono tracking-wide hover:text-white hover:underline transition flex items-center gap-1.5 focus-ring px-2 py-0.5 rounded">
+                            <span className="font-bold">{activeSession.peerIp}</span> 
+                            <span className="text-white/70">({activeSession.deviceName})</span> 
+                            <span className="ml-1 bg-black/25 px-1.5 py-0.5 rounded text-[10px] uppercase font-sans font-bold shadow-inner">{activeSession.bgpState}</span>
                         </Link>
-                    ))}
-                </div>
+                        {downSessions.length > 1 && (
+                            <span className="text-[10px] text-white/50 ml-2 font-sans font-medium tracking-wide bg-black/10 border border-white/10 px-1.5 py-0.5 rounded-md shadow-inner">
+                                {activeIndex + 1} / {downSessions.length}
+                            </span>
+                        )}
+                    </div>
+                )}
             </div>
 
-            {/* Right Controls (Static Snooze Buttons) */}
-            <div className="flex items-center gap-1 px-3 bg-[#be123c] shrink-0 h-full z-10 relative border-l border-white/10 shadow-[-4px_0_12px_rgba(225,29,72,1)]">
-                <span className="material-symbols-outlined text-[16px] text-white/80 mr-1">campaign</span>
+            {/* Right Controls */}
+            <div className="flex items-center gap-1.5 px-4 bg-[#be123c] shrink-0 h-full z-10 relative border-l border-white/10 shadow-[-4px_0_12px_rgba(225,29,72,1)]">
+                <span className="material-symbols-outlined text-[16px] text-white/80">campaign</span>
                 <span className="text-[10px] text-white/80 mr-1 font-bold tracking-wider">MUTE:</span>
                 {[5, 15, 60].map(m => (
-                    <button key={m} onClick={() => snooze(m)} className="px-2 py-1 rounded text-[10px] font-bold bg-black/25 hover:bg-black/50 transition focus-ring">
+                    <button key={m} onClick={() => snooze(m)} className="px-2 py-1 rounded text-[10px] font-bold bg-black/25 hover:bg-black/50 transition focus-ring shadow-inner border border-white/5">
                         {m === 60 ? '1H' : `${m}M`}
                     </button>
                 ))}

@@ -406,21 +406,4 @@ select option {
   border-width: 0;
 }
 
-/* ─────────────────────────────────────────────
-   NOC ALARM MARQUEE
-───────────────────────────────────────────── */
-@keyframes noc-marquee {
-  0% { transform: translateX(0); }
-  100% { transform: translateX(-100%); }
-}
-
-.animate-noc-marquee {
-  display: flex;
-  white-space: nowrap;
-  animation: noc-marquee 25s linear infinite;
-  padding-left: 100vw;
-}
-
-.animate-noc-marquee:hover {
-  animation-play-state: paused;
-}
+ 
