@@ -78,10 +78,10 @@ export default async function RootLayout({
           monitoringName={monitoringName}
           companyName={companyName}
         />
-        <div className="flex-1 flex flex-col min-h-screen overflow-auto">
+        <div className="flex-1 flex flex-col min-h-screen overflow-auto relative">
+          <AlarmManager />
           {children}
         </div>
-        <AlarmManager />
       </body>
     </html>
   );

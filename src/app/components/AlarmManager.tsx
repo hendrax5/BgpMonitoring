@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import Draggable from 'react-draggable';
 import Link from 'next/link';
 
 const SNOOZE_KEY = 'bgp_alarm_snooze_until';
@@ -15,13 +14,11 @@ interface DownSession {
 }
 
 export default function AlarmManager() {
-    const nodeRef = useRef<HTMLDivElement>(null);
     const [downCount, setDownCount] = useState(0);
     const [downSessions, setDownSessions] = useState<DownSession[]>([]);
     const [snoozedUntil, setSnoozedUntil] = useState<number | null>(null);
     const [alarmActive, setAlarmActive] = useState(false);
     const [snoozeRemaining, setSnoozeRemaining] = useState(0);
-    const [expanded, setExpanded] = useState(false);
     const audioCtxRef = useRef<AudioContext | null>(null);
     const alarmIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -60,7 +57,7 @@ export default function AlarmManager() {
             const t = ctx.currentTime;
             playBeep(t, 880, 0.15); playBeep(t + 0.2, 660, 0.15);
             playBeep(t + 0.4, 880, 0.15); playBeep(t + 0.6, 660, 0.15);
-        } catch { /* ignore */ }
+        } catch { /* ignore audio err */ }
     }, []);
 
     const startAlarm = useCallback(() => {
@@ -85,7 +82,6 @@ export default function AlarmManager() {
     const poll = useCallback(async () => {
         try {
             const data = await fetch('/api/status').then(r => r.json());
-            // If not authenticated (e.g. on login/register page), stop polling
             if (data.notAuthenticated) {
                 if (pollIntervalRef.current) { clearInterval(pollIntervalRef.current); pollIntervalRef.current = null; }
                 stopAlarm();
@@ -105,113 +101,62 @@ export default function AlarmManager() {
         return () => { if (pollIntervalRef.current) clearInterval(pollIntervalRef.current); stopAlarm(); };
     }, [poll, stopAlarm]);
 
-
-    // Hide entirely when everything OK and not snoozed
-    if (downCount === 0 && !alarmActive && !snoozedUntil) return null;
+    // UI Logic
+    if (downCount === 0 && !snoozedUntil && !alarmActive) return null;
 
     const isSnoozed = snoozedUntil !== null && Date.now() < snoozedUntil;
 
-    return (
-        <Draggable handle=".drag-handle" nodeRef={nodeRef}>
-            <div ref={nodeRef} className="fixed top-4 right-4 z-[9999] flex flex-col items-end gap-2">
-                {/* Compact badge — always visible, acts as drag handle */}
-                <button
-                    onClick={() => setExpanded(e => !e)}
-                    className="drag-handle flex items-center gap-2 px-3 py-2 rounded-xl shadow-xl transition-all cursor-move"
-                    style={{
-                        backgroundColor: isSnoozed ? '#1e293b' : '#f43f5e',
-                        border: isSnoozed ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(244,63,94,0.7)',
-                        boxShadow: alarmActive ? '0 0 20px rgba(244,63,94,0.4)' : undefined,
-                    }}
-                >
-                {alarmActive && (
-                    <span className="inline-block w-2 h-2 rounded-full animate-pulse bg-white flex-shrink-0" />
-                )}
-                <span className="material-symbols-outlined text-lg text-white">
-                    {isSnoozed ? 'notifications_paused' : 'notification_important'}
-                </span>
-                <span className="text-xs font-bold text-white">
-                    {isSnoozed
-                        ? `Snoozed ${snoozeRemaining}m`
-                        : `${downCount} DOWN`}
-                </span>
-                <span className="material-symbols-outlined text-sm text-white/60">
-                    {expanded ? 'expand_less' : 'expand_more'}
-                </span>
-            </button>
-
-            {/* Expandable detail panel */}
-            {expanded && (
-                <div
-                    className="w-80 rounded-xl overflow-hidden shadow-2xl"
-                    style={{ backgroundColor: '#0d1520', border: '1px solid rgba(244,63,94,0.3)' }}
-                >
-                    {/* Panel header */}
-                    <div className="flex items-center justify-between px-4 py-3 border-b"
-                        style={{ backgroundColor: 'rgba(244,63,94,0.08)', borderColor: 'rgba(244,63,94,0.2)' }}>
-                        <div className="flex items-center gap-2">
-                            <span className="material-symbols-outlined text-base" style={{ color: '#f43f5e' }}>
-                                notification_important
-                            </span>
-                            <span className="text-sm font-bold" style={{ color: '#f43f5e' }}>
-                                {isSnoozed ? `Alarm Snoozed` : `${downCount} Session${downCount !== 1 ? 's' : ''} DOWN`}
-                            </span>
-                        </div>
-                        {/* Snooze controls */}
-                        {isSnoozed ? (
-                            <button
-                                onClick={() => { setSnoozedUntil(null); localStorage.removeItem(SNOOZE_KEY); }}
-                                className="text-[10px] font-bold px-2 py-1 rounded-lg"
-                                style={{ backgroundColor: 'rgba(19,164,236,0.15)', color: '#13a4ec' }}>
-                                Resume
-                            </button>
-                        ) : (
-                            <div className="flex gap-1">
-                                {[5, 15, 60].map(m => (
-                                    <button key={m}
-                                        onClick={() => snooze(m)}
-                                        className="text-[10px] font-bold px-2 py-1 rounded-lg"
-                                        style={{
-                                            backgroundColor: m === 15 ? 'rgba(19,164,236,0.15)' : 'rgba(255,255,255,0.07)',
-                                            color: m === 15 ? '#13a4ec' : '#94a3b8'
-                                        }}
-                                        title={`Snooze ${m} minutes`}>
-                                        {m === 60 ? '1h' : `${m}m`}
-                                    </button>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Down session list */}
-                    {downSessions.length > 0 && (
-                        <div className="p-3 space-y-1.5 max-h-56 overflow-y-auto">
-                            {downSessions.map((s, i) => (
-                                <a key={i} href={`/peers/${encodeURIComponent(s.peerIp)}`}
-                                    onClick={() => setExpanded(false)}
-                                    className="flex items-center justify-between rounded-lg px-3 py-2 transition-colors"
-                                    style={{ backgroundColor: 'rgba(244,63,94,0.06)', border: '1px solid rgba(244,63,94,0.12)' }}>
-                                    <div>
-                                        <span className="font-bold font-mono text-xs" style={{ color: '#f43f5e' }}>{s.peerIp}</span>
-                                        <span className="text-[10px] ml-1.5" style={{ color: '#64748b' }}>{s.deviceName}</span>
-                                    </div>
-                                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
-                                        style={{ backgroundColor: 'rgba(244,63,94,0.15)', color: '#f43f5e' }}>
-                                        {s.bgpState}
-                                    </span>
-                                </a>
-                            ))}
-                        </div>
-                    )}
-
-                    <div className="px-4 py-2 border-t" style={{ borderColor: 'rgba(255,255,255,0.05)' }}>
-                        <p className="text-[10px]" style={{ color: '#334155' }}>
-                            Polls every 30s · Alarm repeats every 4s until snoozed
-                        </p>
-                    </div>
+    // Subdued Snooze Banner
+    if (isSnoozed) {
+        return (
+            <div className="w-full bg-[#0d1520] border-b border-rose-500/30 py-1.5 px-4 flex justify-between items-center z-[100] sticky top-0 text-slate-400 text-[11px] font-medium">
+                <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-[16px]">notifications_paused</span>
+                    <span>Alarm snoozed for <b>{snoozeRemaining}m</b>.</span>
+                    {downCount > 0 && <span className="text-rose-500 ml-2">({downCount} sessions still down)</span>}
                 </div>
-            )}
+                <button 
+                    onClick={() => { setSnoozedUntil(null); localStorage.removeItem(SNOOZE_KEY); }}
+                    className="hover:text-blue-400 text-[#13a4ec] font-bold uppercase tracking-wider transition focus-ring"
+                >
+                    Resume Alarm
+                </button>
             </div>
-        </Draggable>
+        );
+    }
+
+    // Active NOC Incident Banner
+    return (
+        <div className="w-full bg-[#e11d48] text-white z-[100] sticky top-0 flex items-center shadow-lg h-10 overflow-hidden box-border shrink-0">
+            {/* Urgent Left Badge (static, stays on top of marquee) */}
+            <div className="flex items-center gap-2 px-4 h-full bg-[#be123c] font-bold text-[11px] whitespace-nowrap tracking-wider shrink-0 z-10 relative shadow-[4px_0_12px_rgba(0,0,0,0.15)]">
+                <span className="material-symbols-outlined text-white animate-pulse text-[18px]">warning</span>
+                URGENT: {downCount} DOWN
+            </div>
+
+            {/* Marquee Ticker */}
+            <div className="flex-1 relative h-full flex items-center bg-[#e11d48]">
+                <div className="animate-noc-marquee flex gap-16 text-[13px] font-mono tracking-tight text-white/95">
+                    {downSessions.map((s, i) => (
+                        <Link key={i} href={`/peers/${encodeURIComponent(s.peerIp)}`} className="hover:text-white hover:underline transition flex items-center gap-1.5 focus-ring">
+                            <span className="font-bold">{s.peerIp}</span> 
+                            <span className="text-white/70">({s.deviceName})</span> 
+                            <span className="ml-1 bg-black/25 px-1.5 py-0.5 rounded text-[10px] uppercase font-sans font-bold shadow-inner">{s.bgpState}</span>
+                        </Link>
+                    ))}
+                </div>
+            </div>
+
+            {/* Right Controls (Static Snooze Buttons) */}
+            <div className="flex items-center gap-1 px-3 bg-[#be123c] shrink-0 h-full z-10 relative border-l border-white/10 shadow-[-4px_0_12px_rgba(225,29,72,1)]">
+                <span className="material-symbols-outlined text-[16px] text-white/80 mr-1">campaign</span>
+                <span className="text-[10px] text-white/80 mr-1 font-bold tracking-wider">MUTE:</span>
+                {[5, 15, 60].map(m => (
+                    <button key={m} onClick={() => snooze(m)} className="px-2 py-1 rounded text-[10px] font-bold bg-black/25 hover:bg-black/50 transition focus-ring">
+                        {m === 60 ? '1H' : `${m}M`}
+                    </button>
+                ))}
+            </div>
+        </div>
     );
 }
