@@ -177,13 +177,6 @@ function fetchConfigViaSSH(host: string, port: number, user: string, pass: strin
     if (connectionMode === 'telnet') {
         return new Promise(async (resolve, reject) => {
             const conn = new Telnet();
-            let output = '';
-            
-            const globalTimeout = setTimeout(() => {
-                conn.end();
-                reject(new Error('Telnet Shell Connection Timeout (45s)'));
-            }, 45000);
-
             try {
                 await conn.connect({
                     host: host,
@@ -195,38 +188,27 @@ function fetchConfigViaSSH(host: string, port: number, user: string, pass: strin
                     failedLoginMatch: /%Error|bad password|authentication failure/i,
                     shellPrompt: /(>|#)\s*$/,
                     timeout: 20000,
+                    execTimeout: 45000,
+                    sendTimeout: 45000,
+                    echoLines: 0,
                     negotiationMandatory: true,
+                    pageSeparator: /---- More.*|Press any key.*/i
                 });
                 
-                let stagnationTimer: NodeJS.Timeout;
-
-                // Listen to raw raw telnet data just like SSH interactive shell
-                conn.on('data', (data: Buffer) => {
-                    const chunk = data.toString('utf8');
-                    output += chunk;
-
-                    if (chunk.includes('---- More') || chunk.toLowerCase().includes('press any key') || chunk.toLowerCase().includes('more')) {
-                        conn.send(' ', { waitfor: false }).catch(() => {}); // Emulate Spacebar
-                    }
-
-                    clearTimeout(stagnationTimer);
-                    stagnationTimer = setTimeout(() => {
-                        clearTimeout(globalTimeout);
-                        conn.end();
-                        resolve(output);
-                    }, 5000);
-                });
-
-                // Trigger the sequence natively
+                // Flush the leftover prompt buffer from connect() by sending an empty return
+                try { await conn.exec('\r\n'); } catch (e) {}
+                
                 if (pagingCmd) {
-                    await conn.send(pagingCmd, { waitfor: false });
-                    await new Promise(r => setTimeout(r, 1000)); // wait a sec for it to process
+                    await conn.exec(pagingCmd);
+                    await new Promise(r => setTimeout(r, 500));
                 }
                 
-                await conn.send(command, { waitfor: false });
-
+                // Execute the actual backup command
+                const output = await conn.exec(command);
+                
+                conn.end();
+                resolve(output);
             } catch (err) {
-                clearTimeout(globalTimeout);
                 try { conn.end(); } catch {}
                 reject(err);
             }
