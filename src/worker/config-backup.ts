@@ -192,9 +192,10 @@ function fetchConfigViaSSH(host: string, port: number, user: string, pass: strin
                     password: pass,
                     loginPrompt: /([Uu]sername|[Ll]ogin):/i,
                     passwordPrompt: /[Pp]assword:/i,
+                    failedLoginMatch: /%Error|bad password|authentication failure/i,
                     shellPrompt: /(>|#)\s*$/,
                     timeout: 20000,
-                    negotiationMandatory: false,
+                    negotiationMandatory: true,
                 });
                 
                 let stagnationTimer: NodeJS.Timeout;
