@@ -189,7 +189,7 @@ function fetchConfigViaSSH(host: string, port: number, user: string, pass: strin
                     timeout: 45000,
                     execTimeout: 45000,
                     sendTimeout: 45000,
-                    echoLines: -1,
+                    echoLines: 0,
                     negotiationMandatory: false,
                     pageSeparator: /---- More.*|Press any key.*/i
                 });
