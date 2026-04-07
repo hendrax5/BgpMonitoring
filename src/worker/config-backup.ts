@@ -200,8 +200,12 @@ function fetchConfigViaSSH(host: string, port: number, user: string, pass: strin
                 try { await conn.exec('\r\n'); } catch (e) {}
                 
                 if (pagingCmd) {
-                    await conn.exec(pagingCmd);
-                    await new Promise(r => setTimeout(r, 500));
+                    try {
+                        await conn.exec(pagingCmd);
+                        await new Promise(r => setTimeout(r, 500));
+                    } catch (e) {
+                        // Ignore paging command timeout if device doesn't support it or prompt swallowed
+                    }
                 }
                 
                 // Execute the actual backup command
