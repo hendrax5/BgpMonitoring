@@ -85,8 +85,13 @@ export async function backupRouterConfigs() {
         const profile = vendorMap.get(router.vendor.toLowerCase());
         const configCmd = profile ? profile.backupCommand : getConfigCommand(router.vendor);
         let connectionMode = profile ? profile.connectionMode : (router.vendor.toLowerCase() === 'huawei' ? 'shell' : 'exec');
-        const pagingCmd = profile ? profile.disablePagingCmd : null;
+        let pagingCmd = profile ? profile.disablePagingCmd : null;
         const removeRegex = profile ? profile.regexRemovePattern : null;
+        
+        // Auto-override: ZTE OLT needs terminal length 0 to avoid huge pagination delays over telnet
+        if (router.vendor.toLowerCase() === 'zte-olt' && !pagingCmd) {
+            pagingCmd = 'terminal length 0';
+        }
         
         // Auto-override: If the router is explicitly configured to use Telnet for polling, we must use Telnet for backup too
         if (router.pollMethod === 'telnet_only' || router.pollMethod === 'snmp_telnet_mix') {
@@ -178,7 +183,7 @@ function fetchConfigViaSSH(host: string, port: number, user: string, pass: strin
         return new Promise(async (resolve, reject) => {
             const conn = new Telnet();
             try {
-                console.log(`[Config Worker DEBUG] Executing connect() for ${host}`);
+                console.log(`[Config Worker DEBUG] Executing connect() for ${host} using user[${user}]`);
                 await conn.connect({
                     host: host,
                     port: port || 23,
@@ -189,7 +194,7 @@ function fetchConfigViaSSH(host: string, port: number, user: string, pass: strin
                     failedLoginMatch: /%Error|bad password|authentication failure/i,
                     shellPrompt: /(>|#)\s*$/,
                     timeout: 45000,
-                    execTimeout: 120000,
+                    execTimeout: 300000,
                     sendTimeout: 20000,
                     echoLines: 0,
                     negotiationMandatory: true,
