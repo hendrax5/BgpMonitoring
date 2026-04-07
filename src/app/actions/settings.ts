@@ -227,13 +227,13 @@ export async function addVendorProfile(formData: FormData) {
     const vendorName = formData.get('vendorName') as string;
     const connectionMode = formData.get('connectionMode') as string || 'exec';
     const backupCommand = formData.get('backupCommand') as string || '';
-    const pagingCmd = formData.get('pagingCmd') as string || '';
+    const disablePagingCmd = formData.get('disablePagingCmd') as string || '';
 
     if (!vendorName || !backupCommand) redirect('/settings?error=Vendor+Name+and+Backup+Command+are+required');
 
     try {
         await (prisma as any).vendorProfile.create({
-            data: { vendorName, connectionMode, backupCommand, pagingCmd }
+            data: { vendorName, connectionMode, backupCommand, disablePagingCmd }
         });
         revalidatePath('/settings');
     } catch (error: any) {
@@ -250,14 +250,14 @@ export async function updateVendorProfile(formData: FormData) {
     const vendorName = formData.get('vendorName') as string;
     const connectionMode = formData.get('connectionMode') as string || 'exec';
     const backupCommand = formData.get('backupCommand') as string || '';
-    const pagingCmd = formData.get('pagingCmd') as string || '';
+    const disablePagingCmd = formData.get('disablePagingCmd') as string || '';
 
     if (!id || !vendorName || !backupCommand) redirect('/settings?error=Required+fields+missing');
 
     try {
         await (prisma as any).vendorProfile.update({
             where: { id },
-            data: { vendorName, connectionMode, backupCommand, pagingCmd }
+            data: { vendorName, connectionMode, backupCommand, disablePagingCmd }
         });
         revalidatePath('/settings');
     } catch (error: any) {

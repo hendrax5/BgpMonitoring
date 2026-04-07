@@ -628,8 +628,8 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                                 </div>
                                 <div>
                                     <label className="block text-xs font-medium text-zinc-400 mb-1">Disable Paging Command</label>
-                                    <input type="text" name="pagingCmd" placeholder="e.g. terminal length 0" 
-                                        defaultValue={editVendorObj?.pagingCmd || ''}
+                                    <input type="text" name="disablePagingCmd" placeholder="e.g. terminal length 0" 
+                                        defaultValue={editVendorObj?.disablePagingCmd || ''}
                                         className="w-full bg-[#0a1019] border border-white/10 rounded-xl px-3 py-2 text-xs text-white" />
                                 </div>
                                 <div className="flex gap-2 mt-4">
