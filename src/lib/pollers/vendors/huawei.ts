@@ -1,12 +1,12 @@
 import { BasePoller, BgpPeerState, BgpEventLog, parseBgpUptime } from '../base';
-import { SshPoller } from '../ssh';
+import { createCliPoller as SshPoller } from '../cli';
 
 export class HuaweiPoller extends BasePoller {
     async poll(): Promise<BgpPeerState[]> {
         if (!this.device.sshCredential) {
             throw new Error(`Huawei polling requires SSH credentials for ${this.device.hostname}`);
         }
-        const ssh = new SshPoller(this.device.ipAddress, this.device.sshCredential);
+        const ssh = SshPoller(this.device.ipAddress, this.device.sshCredential, this.device.pollMethod);
 
         // '| no-more' disables VRP pager so full output is returned in one shot.
         // Timeout 60s — NE8K with hundreds of peers has large output.
@@ -49,7 +49,7 @@ export class HuaweiPoller extends BasePoller {
     override async fetchBgpLog(): Promise<BgpEventLog[]> {
         if (!this.device.sshCredential) return [];
         try {
-            const ssh = new SshPoller(this.device.ipAddress, this.device.sshCredential);
+            const ssh = SshPoller(this.device.ipAddress, this.device.sshCredential, this.device.pollMethod);
             const output = await ssh.exec('display logbuffer match BGP');
             return parseHuaweiLog(output);
         } catch { return []; }
@@ -58,7 +58,7 @@ export class HuaweiPoller extends BasePoller {
     override async fetchLiveSessions(): Promise<string> {
         if (!this.device.sshCredential) return 'Error: No SSH Credentials';
         try {
-            const ssh = new SshPoller(this.device.ipAddress, this.device.sshCredential);
+            const ssh = SshPoller(this.device.ipAddress, this.device.sshCredential, this.device.pollMethod);
             return await ssh.exec('display bgp peer');
         } catch (err: any) {
             return `Error fetching live sessions: ${err.message}`;

@@ -1,6 +1,8 @@
 import { Client } from 'ssh2';
 import crypto from 'crypto';
 import { prisma } from '../lib/prisma';
+// @ts-ignore
+import { Telnet } from 'telnet-client';
 
 // Helper to determine the config command per vendor (Fallback)
 function getConfigCommand(vendor: string): string {
@@ -161,6 +163,43 @@ export async function backupRouterConfigs() {
 }
 
 function fetchConfigViaSSH(host: string, port: number, user: string, pass: string, command: string, connectionMode: string, pagingCmd: string | null): Promise<string> {
+
+    // -----------------------------------------------------
+    // TELNET MODE (For legacy devices)
+    // -----------------------------------------------------
+    if (connectionMode === 'telnet') {
+        return new Promise(async (resolve, reject) => {
+            const conn = new Telnet();
+            try {
+                await conn.connect({
+                    host: host,
+                    port: port || 23,
+                    username: user,
+                    password: pass,
+                    loginPrompt: /([Uu]sername|[Ll]ogin):/i,
+                    passwordPrompt: /[Pp]assword:/i,
+                    shellPrompt: />$|#$/,
+                    timeout: 45000,
+                    execTimeout: 45000,
+                    sendTimeout: 45000,
+                    echoLines: -1,
+                    negotiationMandatory: false,
+                    pageSeparator: /---- More ----/i
+                });
+                
+                if (pagingCmd) {
+                    await conn.exec(pagingCmd);
+                }
+                
+                const output = await conn.exec(command);
+                conn.end();
+                resolve(output);
+            } catch (err) {
+                try { conn.end(); } catch {}
+                reject(err);
+            }
+        });
+    }
 
     // -----------------------------------------------------
     // INTERACTIVE SHELL MODE (For devices without EXEC channel support like Huawei/H3C/Ruijie)

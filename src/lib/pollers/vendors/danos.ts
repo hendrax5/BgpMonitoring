@@ -1,5 +1,5 @@
 import { BasePoller, BgpPeerState, BgpEventLog, parseBgpUptime } from '../base';
-import { SshPoller } from '../ssh';
+import { createCliPoller as SshPoller } from '../cli';
 
 // DanOS uses FRRouting-style commands
 export class DanosPoller extends BasePoller {
@@ -7,7 +7,7 @@ export class DanosPoller extends BasePoller {
         if (!this.device.sshCredential) {
             throw new Error(`DanOS polling requires SSH credentials for ${this.device.hostname}`);
         }
-        const ssh = new SshPoller(this.device.ipAddress, this.device.sshCredential);
+        const ssh = SshPoller(this.device.ipAddress, this.device.sshCredential, this.device.pollMethod);
 
         const fetchSummary = async () => {
             let out = await ssh.exec('/opt/vyatta/bin/vyatta-op-cmd-wrapper show protocols bgp ipv4 unicast summary').catch(() => '');
@@ -65,7 +65,7 @@ export class DanosPoller extends BasePoller {
     override async fetchBgpLog(): Promise<BgpEventLog[]> {
         if (!this.device.sshCredential) return [];
         try {
-            const ssh = new SshPoller(this.device.ipAddress, this.device.sshCredential);
+            const ssh = SshPoller(this.device.ipAddress, this.device.sshCredential, this.device.pollMethod);
             let output = await ssh.exec('/bin/vbash -ic "show log | match bgp"').catch(() => '');
             if (!output) output = await ssh.exec('/bin/vbash -ic "show log bgp"').catch(() => '');
             return parseFrrLog(output);
@@ -75,7 +75,7 @@ export class DanosPoller extends BasePoller {
     override async fetchLiveSessions(): Promise<string> {
         if (!this.device.sshCredential) return 'Error: No SSH Credentials';
         try {
-            const ssh = new SshPoller(this.device.ipAddress, this.device.sshCredential);
+            const ssh = SshPoller(this.device.ipAddress, this.device.sshCredential, this.device.pollMethod);
             let out = await ssh.exec('/opt/vyatta/bin/vyatta-op-cmd-wrapper show protocols bgp ipv4 unicast summary').catch(() => '');
             if (!out.includes('Neighbor')) out = await ssh.exec('/bin/vbash -ic "show protocols bgp ipv4 unicast summary"').catch(() => '');
             if (!out.includes('Neighbor')) out = await ssh.exec('vtysh -c "show bgp summary"').catch(() => '');

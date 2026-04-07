@@ -1,12 +1,12 @@
 import { BasePoller, BgpPeerState, BgpEventLog, parseBgpUptime } from '../base';
-import { SshPoller } from '../ssh';
+import { createCliPoller as SshPoller } from '../cli';
 
 export class CiscoPoller extends BasePoller {
     async poll(): Promise<BgpPeerState[]> {
         if (!this.device.sshCredential) {
             throw new Error(`Cisco polling requires SSH credentials for ${this.device.hostname}`);
         }
-        const ssh = new SshPoller(this.device.ipAddress, this.device.sshCredential);
+        const ssh = SshPoller(this.device.ipAddress, this.device.sshCredential, this.device.pollMethod);
 
         // Run summary + neighbor detail in parallel
         const [summaryOutput, neighborOutput] = await Promise.all([
@@ -48,7 +48,7 @@ export class CiscoPoller extends BasePoller {
     override async fetchBgpLog(): Promise<BgpEventLog[]> {
         if (!this.device.sshCredential) return [];
         try {
-            const ssh = new SshPoller(this.device.ipAddress, this.device.sshCredential);
+            const ssh = SshPoller(this.device.ipAddress, this.device.sshCredential, this.device.pollMethod);
             const output = await ssh.exec('show logging | include BGP');
             return parseSyslogBgp(output);
         } catch { return []; }
@@ -57,7 +57,7 @@ export class CiscoPoller extends BasePoller {
     override async fetchLiveSessions(): Promise<string> {
         if (!this.device.sshCredential) return 'Error: No SSH Credentials';
         try {
-            const ssh = new SshPoller(this.device.ipAddress, this.device.sshCredential);
+            const ssh = SshPoller(this.device.ipAddress, this.device.sshCredential, this.device.pollMethod);
             return await ssh.exec('show bgp ipv4 unicast summary');
         } catch (err: any) {
             return `Error fetching live sessions: ${err.message}`;

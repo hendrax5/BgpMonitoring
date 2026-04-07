@@ -1,5 +1,5 @@
 import { BasePoller, BgpPeerState, BgpEventLog, parseBgpUptime } from '../base';
-import { SshPoller } from '../ssh';
+import { createCliPoller as SshPoller } from '../cli';
 import { parseFrrDescriptions, parseFrrPrefixSent, parseFrrLog } from './danos';
 
 // VyOS uses FRRouting — same command structure as DanOS
@@ -8,7 +8,7 @@ export class VyosPoller extends BasePoller {
         if (!this.device.sshCredential) {
             throw new Error(`VyOS polling requires SSH credentials for ${this.device.hostname}`);
         }
-        const ssh = new SshPoller(this.device.ipAddress, this.device.sshCredential);
+        const ssh = SshPoller(this.device.ipAddress, this.device.sshCredential, this.device.pollMethod);
 
         const [summaryOutput, neighborOutput] = await Promise.all([
             ssh.exec('vtysh -c "show bgp summary"').catch(() => ssh.exec('vtysh -c "show ip bgp summary"')),
@@ -53,7 +53,7 @@ export class VyosPoller extends BasePoller {
     override async fetchBgpLog(): Promise<BgpEventLog[]> {
         if (!this.device.sshCredential) return [];
         try {
-            const ssh = new SshPoller(this.device.ipAddress, this.device.sshCredential);
+            const ssh = SshPoller(this.device.ipAddress, this.device.sshCredential, this.device.pollMethod);
             let output = await ssh.exec('vtysh -c "show log | match bgp"').catch(() => '');
             if (!output) output = await ssh.exec('cat /var/log/messages | grep bgp').catch(() => '');
             return parseFrrLog(output);
@@ -63,7 +63,7 @@ export class VyosPoller extends BasePoller {
     override async fetchLiveSessions(): Promise<string> {
         if (!this.device.sshCredential) return 'Error: No SSH Credentials';
         try {
-            const ssh = new SshPoller(this.device.ipAddress, this.device.sshCredential);
+            const ssh = SshPoller(this.device.ipAddress, this.device.sshCredential, this.device.pollMethod);
             return await ssh.exec('vtysh -c "show bgp summary"').catch(() => ssh.exec('vtysh -c "show ip bgp summary"'));
         } catch (err: any) {
             return `Error fetching live sessions: ${err.message}`;

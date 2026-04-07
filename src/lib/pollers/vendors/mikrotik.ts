@@ -1,5 +1,5 @@
 import { BasePoller, BgpPeerState, BgpEventLog, parseBgpUptime } from '../base';
-import { SshPoller } from '../ssh';
+import { createCliPoller as SshPoller } from '../cli';
 
 export class MikrotikPoller extends BasePoller {
     async poll(): Promise<BgpPeerState[]> {
@@ -7,7 +7,7 @@ export class MikrotikPoller extends BasePoller {
             throw new Error(`Mikrotik polling requires SSH credentials for ${this.device.hostname}`);
         }
 
-        const ssh = new SshPoller(this.device.ipAddress, this.device.sshCredential);
+        const ssh = SshPoller(this.device.ipAddress, this.device.sshCredential, this.device.pollMethod);
 
         // Try both v7 and v6 commands, use whichever returns data
         let output = '';
@@ -141,7 +141,7 @@ export class MikrotikPoller extends BasePoller {
     override async fetchBgpLog(): Promise<BgpEventLog[]> {
         if (!this.device.sshCredential) return [];
         try {
-            const ssh = new SshPoller(this.device.ipAddress, this.device.sshCredential);
+            const ssh = SshPoller(this.device.ipAddress, this.device.sshCredential, this.device.pollMethod);
             const output = await ssh.exec('/log print where topics~"bgp" without-paging');
             return parseMikrotikLog(output);
         } catch {
@@ -152,7 +152,7 @@ export class MikrotikPoller extends BasePoller {
     override async fetchLiveSessions(): Promise<string> {
         if (!this.device.sshCredential) return 'Error: No SSH Credentials';
         try {
-            const ssh = new SshPoller(this.device.ipAddress, this.device.sshCredential);
+            const ssh = SshPoller(this.device.ipAddress, this.device.sshCredential, this.device.pollMethod);
             try {
                 // Try RouterOS v7 command first
                 const out = await ssh.exec('/routing/bgp/session/print detail without-paging');

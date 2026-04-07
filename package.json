@@ -26,7 +26,8 @@
     "react-diff-viewer-continued": "^4.2.0",
     "react-dom": "19.2.3",
     "react-draggable": "^4.5.0",
-    "ssh2": "^1.17.0"
+    "ssh2": "^1.17.0",
+    "telnet-client": "^2.2.13"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

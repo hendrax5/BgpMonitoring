@@ -1,12 +1,12 @@
 import { BasePoller, BgpPeerState, BgpEventLog, parseBgpUptime } from '../base';
-import { SshPoller } from '../ssh';
+import { createCliPoller as SshPoller } from '../cli';
 
 export class JuniperPoller extends BasePoller {
     async poll(): Promise<BgpPeerState[]> {
         if (!this.device.sshCredential) {
             throw new Error(`Juniper polling requires SSH credentials for ${this.device.hostname}`);
         }
-        const ssh = new SshPoller(this.device.ipAddress, this.device.sshCredential);
+        const ssh = SshPoller(this.device.ipAddress, this.device.sshCredential, this.device.pollMethod);
 
         // Run summary + full neighbor data (for Active prefixes + Advertised prefixes) in parallel
         // Juniper with 300+ peers takes significant time. Extended timeout to 60s.
@@ -76,7 +76,7 @@ export class JuniperPoller extends BasePoller {
     override async fetchBgpLog(): Promise<BgpEventLog[]> {
         if (!this.device.sshCredential) return [];
         try {
-            const ssh = new SshPoller(this.device.ipAddress, this.device.sshCredential);
+            const ssh = SshPoller(this.device.ipAddress, this.device.sshCredential, this.device.pollMethod);
             const output = await ssh.exec('show log messages | match BGP | last 30');
             return parseJuniperLog(output);
         } catch { return []; }
@@ -85,7 +85,7 @@ export class JuniperPoller extends BasePoller {
     override async fetchLiveSessions(): Promise<string> {
         if (!this.device.sshCredential) return 'Error: No SSH Credentials';
         try {
-            const ssh = new SshPoller(this.device.ipAddress, this.device.sshCredential);
+            const ssh = SshPoller(this.device.ipAddress, this.device.sshCredential, this.device.pollMethod);
             return await ssh.exec('show bgp summary | no-more');
         } catch (err: any) {
             return `Error fetching live sessions: ${err.message}`;

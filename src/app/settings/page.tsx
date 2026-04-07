@@ -220,6 +220,8 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                                                     <option value="snmp_ssh_mix">SNMP + SSH</option>
                                                     <option value="snmp_only">SNMP Only</option>
                                                     <option value="ssh_only">SSH Only</option>
+                                                    <option value="telnet_only">Telnet Only</option>
+                                                    <option value="snmp_telnet_mix">SNMP + Telnet</option>
                                                 </select>
                                             </div>
                                         </div>
@@ -625,8 +627,9 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                                 <div>
                                     <label className="block text-xs font-medium text-zinc-400 mb-1">Connection Mode</label>
                                     <select name="connectionMode" className="w-full bg-[#0a1019] border border-white/10 rounded-xl px-3 py-2 text-xs text-white" defaultValue={editVendorObj?.connectionMode || 'exec'}>
-                                        <option value="exec">Exec (Batch Mode - MikroTik/IOS)</option>
-                                        <option value="shell">Interactive Shell (ZTE/H3C/Huawei)</option>
+                                        <option value="exec">SSH Exec (Batch Mode - MikroTik/IOS)</option>
+                                        <option value="shell">SSH Interactive Shell (ZTE/H3C/Huawei)</option>
+                                        <option value="telnet">Telnet (Legacy devices)</option>
                                     </select>
                                 </div>
                                 <div>

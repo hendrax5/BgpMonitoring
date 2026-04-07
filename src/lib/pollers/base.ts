@@ -106,10 +106,10 @@ export abstract class BasePoller {
      * SSH for rich details like description, prefix limits, routing instances (detail).
      */
     async pollHybrid(): Promise<BgpPeerState[]> {
-        if (this.device.pollMethod === 'snmp') {
+        if (this.device.pollMethod === 'snmp' || this.device.pollMethod === 'snmp_only') {
             return await this.pollSnmpOnly();
         }
-        if (this.device.pollMethod === 'ssh') {
+        if (this.device.pollMethod === 'ssh' || this.device.pollMethod === 'ssh_only' || this.device.pollMethod === 'telnet_only') {
             return await this.poll();
         }
 
