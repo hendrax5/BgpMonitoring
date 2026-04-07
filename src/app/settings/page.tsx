@@ -203,6 +203,12 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                                                     <option value="huawei">Huawei</option>
                                                     <option value="danos">DanOS</option>
                                                     <option value="vyos">VyOS</option>
+                                                    {vendorProfiles
+                                                        .filter((vp: any) => !['mikrotik', 'cisco', 'juniper', 'huawei', 'danos', 'vyos'].includes(vp.vendorName.toLowerCase()))
+                                                        .map((vp: any) => (
+                                                            <option key={vp.id} value={vp.vendorName}>{vp.vendorName.toUpperCase()}</option>
+                                                        ))
+                                                    }
                                                 </select>
                                             </div>
                                             <div>
