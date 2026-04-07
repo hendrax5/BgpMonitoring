@@ -164,7 +164,27 @@ export default function ConfigDevices({ userRole }: { userRole: string }) {
                     <div className="p-4 border-b border-zinc-800 bg-zinc-900 flex justify-between items-center">
                         <h3 className="font-mono text-zinc-100 font-bold">Raw Configuration</h3>
                         <div className="flex gap-2">
-                            <button onClick={() => { navigator.clipboard.writeText(viewedConfig); setToast({ message: 'Copied to clipboard', type: 'success' }) }} className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-4 py-2 rounded text-sm transition-colors">Copy</button>
+                            <button onClick={() => { 
+                                if (navigator.clipboard && window.isSecureContext) {
+                                    navigator.clipboard.writeText(viewedConfig);
+                                } else {
+                                    const textArea = document.createElement("textarea");
+                                    textArea.value = viewedConfig;
+                                    textArea.style.position = "fixed";
+                                    textArea.style.left = "-999999px";
+                                    textArea.style.top = "-999999px";
+                                    document.body.appendChild(textArea);
+                                    textArea.focus();
+                                    textArea.select();
+                                    try {
+                                        document.execCommand('copy');
+                                    } catch (err) {
+                                        console.error('Fallback: Oops, unable to copy', err);
+                                    }
+                                    document.body.removeChild(textArea);
+                                }
+                                setToast({ message: 'Copied to clipboard', type: 'success' });
+                            }} className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-4 py-2 rounded text-sm transition-colors">Copy</button>
                             <button onClick={() => setViewedConfig(null)} className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded text-sm transition-colors">Close</button>
                         </div>
                     </div>
