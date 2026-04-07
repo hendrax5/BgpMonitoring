@@ -378,12 +378,12 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                                                         {device.sshCredential ? (
                                                             <div className="flex items-center gap-1.5">
                                                                 <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
-                                                                <span className="text-xs text-zinc-400">SSH User: {device.sshCredential.sshUser}</span>
+                                                                <span className="text-xs text-zinc-400">CLI User: {device.sshCredential.sshUser}</span>
                                                             </div>
                                                         ) : (
                                                             <div className="flex items-center gap-1.5">
                                                                 <span className="w-1.5 h-1.5 rounded-full bg-zinc-600"></span>
-                                                                <span className="text-xs text-zinc-600">No SSH</span>
+                                                                <span className="text-xs text-zinc-600">No CLI Creds</span>
                                                             </div>
                                                         )}
                                                     </td>

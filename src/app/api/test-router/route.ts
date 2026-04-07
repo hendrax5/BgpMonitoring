@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
 
     const results = {
         snmp: { ok: false, message: 'Not tested' },
-        ssh: { ok: false, message: 'Not tested' },
+        cli: { ok: false, message: 'Not tested' },
     };
 
     // --- Test SNMP ---
@@ -55,41 +55,21 @@ export async function POST(req: NextRequest) {
         results.snmp = { ok: false, message: 'No SNMP community configured' };
     }
 
-    // --- Test SSH ---
+    // --- Test CLI (SSH/Telnet) ---
     if (device.sshCredential) {
         try {
-            const { Client } = require('ssh2');
-            const conn = new Client();
-
-            await new Promise<void>((resolve) => {
-                const timeout = setTimeout(() => {
-                    conn.end();
-                    results.ssh = { ok: false, message: 'SSH connection timed out (5s)' };
-                    resolve();
-                }, 5000);
-
-                conn.on('ready', () => {
-                    clearTimeout(timeout);
-                    results.ssh = { ok: true, message: 'SSH connection successful' };
-                    conn.end();
-                    resolve();
-                }).on('error', (err: any) => {
-                    clearTimeout(timeout);
-                    results.ssh = { ok: false, message: err.message };
-                    resolve();
-                }).connect({
-                    host: device.ipAddress,
-                    port: device.sshCredential!.sshPort,
-                    username: device.sshCredential!.sshUser,
-                    password: device.sshCredential!.sshPass,
-                    readyTimeout: 5000,
-                });
-            });
+            const { createCliPoller } = require('@/lib/pollers/cli');
+            const cli = createCliPoller(device.ipAddress, device.sshCredential, device.pollMethod);
+            
+            // exec('') or exec('\r\n') just to trigger the auth handshake
+            // but actually createCliPoller's exec connects first
+            await cli.exec(' '); 
+            results.cli = { ok: true, message: 'CLI connection successful' };
         } catch (e: any) {
-            results.ssh = { ok: false, message: `SSH error: ${e.message}` };
+            results.cli = { ok: false, message: `CLI error: ${e.message}` };
         }
     } else {
-        results.ssh = { ok: false, message: 'No SSH credentials configured' };
+        results.cli = { ok: false, message: 'No CLI credentials configured' };
     }
 
     return NextResponse.json(results);

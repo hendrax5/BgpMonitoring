@@ -9,7 +9,7 @@ type TestResult = {
 
 type Results = {
     snmp: TestResult;
-    ssh: TestResult;
+    cli: TestResult;
 };
 
 export default function RouterTestButton({ routerId }: { routerId: number }) {
@@ -30,7 +30,7 @@ export default function RouterTestButton({ routerId }: { routerId: number }) {
         } catch {
             setResults({
                 snmp: { ok: false, message: 'Request failed' },
-                ssh: { ok: false, message: 'Request failed' },
+                cli: { ok: false, message: 'Request failed' },
             });
         } finally {
             setLoading(false);
@@ -59,7 +59,7 @@ export default function RouterTestButton({ routerId }: { routerId: number }) {
             {results && (
                 <div className="flex flex-col gap-1 mt-0.5">
                     <StatusPill label="SNMP" result={results.snmp} />
-                    <StatusPill label="SSH" result={results.ssh} />
+                    <StatusPill label="CLI" result={results.cli} />
                 </div>
             )}
         </div>
