@@ -178,6 +178,7 @@ function fetchConfigViaSSH(host: string, port: number, user: string, pass: strin
         return new Promise(async (resolve, reject) => {
             const conn = new Telnet();
             try {
+                console.log(`[Config Worker DEBUG] Executing connect() for ${host}`);
                 await conn.connect({
                     host: host,
                     port: port || 23,
@@ -187,7 +188,7 @@ function fetchConfigViaSSH(host: string, port: number, user: string, pass: strin
                     passwordPrompt: /[Pp]assword:/i,
                     failedLoginMatch: /%Error|bad password|authentication failure/i,
                     shellPrompt: /(>|#)\s*$/,
-                    timeout: 20000,
+                    timeout: 45000,
                     execTimeout: 120000,
                     sendTimeout: 20000,
                     echoLines: 0,
@@ -195,6 +196,7 @@ function fetchConfigViaSSH(host: string, port: number, user: string, pass: strin
                     pageSeparator: /---- More.*|Press any key.*/i,
                     pageNext: ' '
                 });
+                console.log(`[Config Worker DEBUG] connect() RESOLVED for ${host}`);
                 
                 // Flush the leftover prompt buffer from connect() by sending an empty return
                 try { console.log(`[Config Worker DEBUG] Executing Flush for ${host}`); await conn.exec('\r\n'); } catch (e: any) {
