@@ -84,16 +84,21 @@ export async function backupRouterConfigs() {
         // Retrieve dynamic vendor profile or use legacy backoff logic
         const profile = vendorMap.get(router.vendor.toLowerCase());
         const configCmd = profile ? profile.backupCommand : getConfigCommand(router.vendor);
-        const connectionMode = profile ? profile.connectionMode : (router.vendor.toLowerCase() === 'huawei' ? 'shell' : 'exec');
+        let connectionMode = profile ? profile.connectionMode : (router.vendor.toLowerCase() === 'huawei' ? 'shell' : 'exec');
         const pagingCmd = profile ? profile.disablePagingCmd : null;
         const removeRegex = profile ? profile.regexRemovePattern : null;
+        
+        // Auto-override: If the router is explicitly configured to use Telnet for polling, we must use Telnet for backup too
+        if (router.pollMethod === 'telnet_only' || router.pollMethod === 'snmp_telnet_mix') {
+            connectionMode = 'telnet';
+        }
 
         console.log(`[Config Worker] Connecting to ${router.hostname} (${router.vendor} - ${connectionMode} mode) to fetch config...`);
 
         try {
             let configText = await fetchConfigViaSSH(router.ipAddress, cred.sshPort, cred.sshUser, cred.sshPass, configCmd, connectionMode, pagingCmd);
             
-            if (connectionMode === 'shell') {
+            if (connectionMode === 'shell' || connectionMode === 'telnet') {
                 configText = sanitizeShellOutput(configText, configCmd, removeRegex);
             }
 
