@@ -98,13 +98,15 @@ export async function backupRouterConfigs() {
         try {
             let configText = await fetchConfigViaSSH(router.ipAddress, cred.sshPort, cred.sshUser, cred.sshPass, configCmd, connectionMode, pagingCmd);
             
+            console.log(`[Config Worker DEBUG] Raw output size from ${connectionMode}: ${configText?.length} bytes`);
+            
             if (connectionMode === 'shell' || connectionMode === 'telnet') {
                 configText = sanitizeShellOutput(configText, configCmd, removeRegex);
             }
 
             const cleanText = configText.replace(/\r\n/g, '\n').trim();
             if (!cleanText || cleanText.length < 10) {
-                console.error(`[Config Worker] Parsed config empty/too short for ${router.hostname}. Skip saving.`);
+                console.error(`[Config Worker] Parsed config empty/too short for ${router.hostname}. Skip saving. Output was: ${JSON.stringify(configText)}`);
                 continue;
             }
 
@@ -183,17 +185,19 @@ function fetchConfigViaSSH(host: string, port: number, user: string, pass: strin
                     password: pass,
                     loginPrompt: /([Uu]sername|[Ll]ogin):/i,
                     passwordPrompt: /[Pp]assword:/i,
-                    shellPrompt: />$|#$/,
+                    shellPrompt: /(>|#)\s*$/,
                     timeout: 45000,
                     execTimeout: 45000,
                     sendTimeout: 45000,
                     echoLines: -1,
                     negotiationMandatory: false,
-                    pageSeparator: /---- More ----/i
+                    pageSeparator: /---- More.*|Press any key.*/i
                 });
                 
                 if (pagingCmd) {
                     await conn.exec(pagingCmd);
+                    // Add small delay allowing switch time to disable paging
+                    await new Promise(r => setTimeout(r, 500));
                 }
                 
                 const output = await conn.exec(command);
