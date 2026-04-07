@@ -188,11 +188,12 @@ function fetchConfigViaSSH(host: string, port: number, user: string, pass: strin
                     failedLoginMatch: /%Error|bad password|authentication failure/i,
                     shellPrompt: /(>|#)\s*$/,
                     timeout: 20000,
-                    execTimeout: 45000,
-                    sendTimeout: 45000,
+                    execTimeout: 120000,
+                    sendTimeout: 20000,
                     echoLines: 0,
                     negotiationMandatory: true,
-                    pageSeparator: /---- More.*|Press any key.*/i
+                    pageSeparator: /---- More.*|Press any key.*/i,
+                    pageNext: ' '
                 });
                 
                 // Flush the leftover prompt buffer from connect() by sending an empty return
