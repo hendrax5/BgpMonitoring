@@ -197,20 +197,25 @@ function fetchConfigViaSSH(host: string, port: number, user: string, pass: strin
                 });
                 
                 // Flush the leftover prompt buffer from connect() by sending an empty return
-                try { await conn.exec('\r\n'); } catch (e) {}
+                try { console.log(`[Config Worker DEBUG] Executing Flush for ${host}`); await conn.exec('\r\n'); } catch (e: any) {
+                    console.log(`[Config Worker DEBUG] Flush timeout for ${host}:`, e.message);
+                }
                 
                 if (pagingCmd) {
                     try {
+                        console.log(`[Config Worker DEBUG] Executing Paging for ${host}`);
                         await conn.exec(pagingCmd);
                         await new Promise(r => setTimeout(r, 500));
-                    } catch (e) {
+                    } catch (e: any) {
+                        console.log(`[Config Worker DEBUG] Paging timeout for ${host}:`, e.message);
                         // Ignore paging command timeout if device doesn't support it or prompt swallowed
                     }
                 }
                 
                 // Execute the actual backup command
+                console.log(`[Config Worker DEBUG] Executing Main Command '${command}' for ${host}`);
                 const output = await conn.exec(command);
-                
+                console.log(`[Config Worker DEBUG] Main Command SUCCESS for ${host}, length:`, output?.length);
                 conn.end();
                 resolve(output);
             } catch (err) {
