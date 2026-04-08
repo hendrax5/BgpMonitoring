@@ -101,7 +101,7 @@ export async function backupRouterConfigs() {
         console.log(`[Config Worker] Connecting to ${router.hostname} (${router.vendor} - ${connectionMode} mode) to fetch config...`);
 
         try {
-            let configText = await fetchConfigViaSSH(router.ipAddress, cred.sshPort, cred.sshUser, cred.sshPass, configCmd, connectionMode, pagingCmd);
+            let configText = await fetchConfigViaSSH(router.ipAddress, cred.sshPort, cred.sshUser, cred.sshPass, configCmd, connectionMode, pagingCmd, router.vendor);
             
             console.log(`[Config Worker DEBUG] Raw output size from ${connectionMode}: ${configText?.length} bytes`);
             
@@ -174,7 +174,7 @@ export async function backupRouterConfigs() {
     console.log('[Config Worker] Configuration Backup Job Finished.');
 }
 
-function fetchConfigViaSSH(host: string, port: number, user: string, pass: string, command: string, connectionMode: string, pagingCmd: string | null): Promise<string> {
+function fetchConfigViaSSH(host: string, port: number, user: string, pass: string, command: string, connectionMode: string, pagingCmd: string | null, vendor: string = ''): Promise<string> {
 
     // -----------------------------------------------------
     // TELNET MODE (For legacy devices)
@@ -198,7 +198,7 @@ function fetchConfigViaSSH(host: string, port: number, user: string, pass: strin
                     execTimeout: 300000,
                     sendTimeout: 20000,
                     echoLines: 0,
-                    negotiationMandatory: false,
+                    negotiationMandatory: !vendor.toLowerCase().includes('ruijie'),
                     pageSeparator: /---- More.*|Press any key.*/i,
                     pageNext: ' '
                 });
