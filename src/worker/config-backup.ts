@@ -195,14 +195,15 @@ function fetchConfigViaSSH(host: string, port: number, user: string, pass: strin
                     });
                 }
                 
-                await conn.connect({
+                
+                const connectPromise = conn.connect({
                     host: host,
                     port: port || 23,
                     username: user,
                     password: pass,
                     loginPrompt: /([Uu]sername|[Ll]ogin):/i,
                     passwordPrompt: /[Pp]assword:/i,
-                    initialLFFlush: !vendor.toLowerCase().includes('ruijie'),
+                    initialLFFlush: false,
                     failedLoginMatch: /%Error|bad password|authentication failure/i,
                     shellPrompt: /(>|#)\s*$/,
                     timeout: 45000,
@@ -213,6 +214,21 @@ function fetchConfigViaSSH(host: string, port: number, user: string, pass: strin
                     pageSeparator: /--.*More.*--|---- More.*|Press any key.*/i,
                     pageNext: ' '
                 });
+
+                if (vendor.toLowerCase().includes('ruijie')) {
+                    setTimeout(() => {
+                        try {
+                            const sock = conn.getSocket();
+                            if (sock && !sock.destroyed) {
+                                sock.write('\r\n');
+                            }
+                        } catch (e) {
+                            // Ignore socket errors here
+                        }
+                    }, 1500);
+                }
+                
+                await connectPromise;
                 console.log(`[Config Worker DEBUG] connect() RESOLVED for ${host}`);
                 
                 // Flush the leftover prompt buffer from connect() by sending an empty return
