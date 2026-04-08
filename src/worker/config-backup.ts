@@ -88,8 +88,8 @@ export async function backupRouterConfigs() {
         let pagingCmd = profile ? profile.disablePagingCmd : null;
         const removeRegex = profile ? profile.regexRemovePattern : null;
         
-        // Auto-override: ZTE OLT needs terminal length 0 to avoid huge pagination delays over telnet
-        if (router.vendor.toLowerCase() === 'zte-olt' && !pagingCmd) {
+        // Auto-override: ZTE / ZTE OLT needs terminal length 0 to avoid huge pagination delays over telnet
+        if (router.vendor.toLowerCase().includes('zte') && !pagingCmd) {
             pagingCmd = 'terminal length 0';
         }
         
