@@ -202,7 +202,7 @@ function fetchConfigViaSSH(host: string, port: number, user: string, pass: strin
                     password: pass,
                     loginPrompt: /([Uu]sername|[Ll]ogin):/i,
                     passwordPrompt: /[Pp]assword:/i,
-                    initialLFFlush: !vendor.toLowerCase().includes('ruijie'),
+                    initialLFFlush: true,
                     failedLoginMatch: /%Error|bad password|authentication failure/i,
                     shellPrompt: /(>|#)\s*$/,
                     timeout: 45000,
