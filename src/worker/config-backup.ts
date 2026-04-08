@@ -199,13 +199,20 @@ function fetchConfigViaSSH(host: string, port: number, user: string, pass: strin
                     sendTimeout: 20000,
                     echoLines: 0,
                     negotiationMandatory: !vendor.toLowerCase().includes('ruijie'),
-                    pageSeparator: /---- More.*|Press any key.*/i,
+                    pageSeparator: /--.*More.*--|---- More.*|Press any key.*/i,
                     pageNext: ' '
                 });
                 console.log(`[Config Worker DEBUG] connect() RESOLVED for ${host}`);
                 
                 // Flush the leftover prompt buffer from connect() by sending an empty return
-                try { console.log(`[Config Worker DEBUG] Executing Flush for ${host}`); await conn.exec('\r\n'); } catch (e: any) {
+                try { 
+                    console.log(`[Config Worker DEBUG] Executing Flush for ${host}`); 
+                    await conn.exec('\r\n'); 
+                    if (vendor.toLowerCase().includes('ruijie')) {
+                        await new Promise(r => setTimeout(r, 1500));
+                        try { await conn.exec('\r\n', { timeout: 3000 }); } catch (e) {}
+                    }
+                } catch (e: any) {
                     console.log(`[Config Worker DEBUG] Flush timeout for ${host}:`, e.message);
                 }
                 

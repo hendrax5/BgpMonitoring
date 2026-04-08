@@ -1,4 +1,4 @@
-const { Telnet } = require('telnet-client');
+import { Telnet } from 'telnet-client';
 
 async function test() {
     const conn = new Telnet();
@@ -6,19 +6,19 @@ async function test() {
         host: '103.162.16.105',
         port: 23,
         username: 'hendra',
-        password: '!Tahun2026', // Use actual password or fetch from db. Here I will use prompt flow
+        password: '!Tahun2026', 
         loginPrompt: /([Uu]sername|[Ll]ogin):/i,
         passwordPrompt: /[Pp]assword:/i,
         initialLFFlush: true,
         shellPrompt: /(>|#)\s*$/,
         timeout: 45000,
-        execTimeout: 300000,
+        execTimeout: 10000,
         sendTimeout: 20000,
         echoLines: 0,
         negotiationMandatory: false,
         pageSeparator: /---- More.*|Press any key.*/i,
         pageNext: ' ',
-        debug: true // MUST debug!
+        debug: true
     };
 
     try {
@@ -27,17 +27,20 @@ async function test() {
         console.log('Connected!');
 
         console.log('Sending flush...');
-        try {
-            await conn.exec('\r\n');
-        } catch(e) {}
+        let flush = await conn.exec('\r\n');
+        console.log('Flush output:', JSON.stringify(flush));
 
-        console.log('Sending show version...');
-        let out1 = await conn.exec('show version');
-        console.log('SHOW VERSION:', out1?.length);
+        await new Promise(r => setTimeout(r, 2000));
+
+        console.log('Sending disable pagination...');
+        let pag = await conn.exec('terminal length 0');
+        console.log('Pag output:', JSON.stringify(pag));
+
+        await new Promise(r => setTimeout(r, 2000));
 
         console.log('Sending show running-config...');
         let out2 = await conn.exec('show running-config');
-        console.log('SHOW RUNNING:', out2?.length);
+        console.log('SHOW RUNNING:', JSON.stringify(out2).substring(0, 500));
 
         conn.end();
     } catch (e) {
