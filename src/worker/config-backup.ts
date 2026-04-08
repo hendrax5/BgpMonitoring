@@ -92,6 +92,11 @@ export async function backupRouterConfigs() {
         if (router.vendor.toLowerCase().includes('zte') && !pagingCmd) {
             pagingCmd = 'terminal length 0';
         }
+
+        // Auto-override: Ruijie needs terminal length 0
+        if (router.vendor.toLowerCase().includes('ruijie') && !pagingCmd) {
+            pagingCmd = 'terminal length 0';
+        }
         
         // Auto-override: If the router is explicitly configured to use Telnet for polling, we must use Telnet for backup too
         if (router.pollMethod === 'telnet_only' || router.pollMethod === 'snmp_telnet_mix') {
@@ -205,15 +210,14 @@ function fetchConfigViaSSH(host: string, port: number, user: string, pass: strin
                 console.log(`[Config Worker DEBUG] connect() RESOLVED for ${host}`);
                 
                 // Flush the leftover prompt buffer from connect() by sending an empty return
-                try { 
-                    console.log(`[Config Worker DEBUG] Executing Flush for ${host}`); 
-                    await conn.exec('\r\n'); 
-                    if (vendor.toLowerCase().includes('ruijie')) {
-                        await new Promise(r => setTimeout(r, 1500));
-                        try { await conn.exec('\r\n', { timeout: 3000 }); } catch (e) {}
+                // Skip flush for Ruijie to prevent consuming prompt out of sync
+                if (!vendor.toLowerCase().includes('ruijie')) {
+                    try { 
+                        console.log(`[Config Worker DEBUG] Executing Flush for ${host}`); 
+                        await conn.exec('\r\n'); 
+                    } catch (e: any) {
+                        console.log(`[Config Worker DEBUG] Flush timeout for ${host}:`, e.message);
                     }
-                } catch (e: any) {
-                    console.log(`[Config Worker DEBUG] Flush timeout for ${host}:`, e.message);
                 }
                 
                 if (pagingCmd) {
