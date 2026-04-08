@@ -198,7 +198,7 @@ function fetchConfigViaSSH(host: string, port: number, user: string, pass: strin
                     execTimeout: 300000,
                     sendTimeout: 20000,
                     echoLines: 0,
-                    negotiationMandatory: true,
+                    negotiationMandatory: false,
                     pageSeparator: /---- More.*|Press any key.*/i,
                     pageNext: ' '
                 });
