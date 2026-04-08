@@ -23,9 +23,10 @@ export default async function ReportsPage(props: { searchParams: Promise<{ [key:
     const allDevices = await prisma.routerDevice.findMany({ 
         where: isSuperAdmin ? {} : { tenantId: session.tenantId },
         orderBy: { hostname: 'asc' },
-        select: { hostname: true }
+        select: { id: true, hostname: true }
     });
     const uniqueDevices = Array.from(new Set(allDevices.map((d: any) => d.hostname))) as string[];
+    const allowedDeviceIds = new Set(allDevices.map((d: any) => d.id));
     const totalPages = Math.max(1, Math.ceil(totalCount / limit));
 
     // Summary counts
@@ -34,6 +35,7 @@ export default async function ReportsPage(props: { searchParams: Promise<{ [key:
     // Instead of SQLite we count keys via Redis
     const allKeys = await redis.keys('BgpSession:*');
     let downSessions = 0;
+    let totalSessions = 0;
     
     if (allKeys.length > 0) {
         const pipeline = redis.pipeline();
@@ -42,12 +44,20 @@ export default async function ReportsPage(props: { searchParams: Promise<{ [key:
         results?.forEach(([err, res]) => {
             if (res) {
                 const s = JSON.parse(res as string);
-                if (s.bgpState !== 'Established') downSessions++;
+                if (isSuperAdmin || allowedDeviceIds.has(s.deviceId)) {
+                    totalSessions++;
+                    if (s.bgpState !== 'Established') downSessions++;
+                }
             }
         });
     }
-    const totalSessions = allKeys.length;
-    const events24h = await prisma.historicalEvent.count({ where: { eventTimestamp: { gte: last24h } } });
+    
+    const events24h = await prisma.historicalEvent.count({ 
+        where: { 
+            eventTimestamp: { gte: last24h },
+            ...(isSuperAdmin ? {} : { tenantId: session.tenantId })
+        } 
+    });
 
     const fmtDur = (sec: number | null) => {
         if (!sec) return '—';
