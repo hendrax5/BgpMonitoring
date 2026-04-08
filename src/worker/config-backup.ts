@@ -202,14 +202,14 @@ function fetchConfigViaSSH(host: string, port: number, user: string, pass: strin
                     password: pass,
                     loginPrompt: /([Uu]sername|[Ll]ogin):/i,
                     passwordPrompt: /[Pp]assword:/i,
-                    initialLFFlush: true,
+                    initialLFFlush: !vendor.toLowerCase().includes('ruijie'),
                     failedLoginMatch: /%Error|bad password|authentication failure/i,
                     shellPrompt: /(>|#)\s*$/,
                     timeout: 45000,
                     execTimeout: 300000,
                     sendTimeout: 20000,
                     echoLines: 0,
-                    negotiationMandatory: !vendor.toLowerCase().includes('ruijie'),
+                    negotiationMandatory: true,
                     pageSeparator: /--.*More.*--|---- More.*|Press any key.*/i,
                     pageNext: ' '
                 });
