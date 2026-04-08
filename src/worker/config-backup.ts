@@ -189,6 +189,12 @@ function fetchConfigViaSSH(host: string, port: number, user: string, pass: strin
             const conn = new Telnet();
             try {
                 console.log(`[Config Worker DEBUG] Executing connect() for ${host} using user[${user}]`);
+                if (vendor.toLowerCase().includes('ruijie')) {
+                    conn.on('data', (d: Buffer) => {
+                        console.log(`[RUIJIE-RECV]: ${JSON.stringify(d.toString('utf8'))}`);
+                    });
+                }
+                
                 await conn.connect({
                     host: host,
                     port: port || 23,
