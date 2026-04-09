@@ -6,17 +6,11 @@ services:
     container_name: librenms_dashboard
     restart: unless-stopped
     ports:
-      - "3000:3000"
       - "514:514/udp"
+    env_file:
+      - .env
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=postgresql://bgpmon:bgpmon_secret@postgres:5432/bgpmon
-      - REDIS_URL=redis://redis:6379
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
-      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
-      - JWT_SECRET=${JWT_SECRET:-change_this_to_a_very_long_random_secret_key}
-      - SUPERADMIN_USERNAME=${SUPERADMIN_USERNAME:-superadmin}
-      - SUPERADMIN_PASSWORD=${SUPERADMIN_PASSWORD:-superadmin123}
     depends_on:
       postgres:
         condition: service_healthy
@@ -46,6 +40,23 @@ services:
     volumes:
       - redis_data:/data
 
+  caddy:
+    image: caddy:2-alpine
+    container_name: bgpmon_caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - librenms-dashboard
+
 volumes:
   pg_data:
   redis_data:
+  caddy_data:
+  caddy_config:
