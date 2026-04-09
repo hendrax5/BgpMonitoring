@@ -24,7 +24,7 @@ services:
     env_file:
       - .env
     volumes:
-      - pg_data:/var/lib/postgresql/data
+      - pg_data_v2:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U bgpmon -d bgpmon"]
       interval: 10s
@@ -54,7 +54,7 @@ services:
       - librenms-dashboard
 
 volumes:
-  pg_data:
+  pg_data_v2:
   redis_data:
   caddy_data:
   caddy_config:
