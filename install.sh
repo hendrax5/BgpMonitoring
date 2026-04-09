@@ -110,12 +110,21 @@ POSTGRES_PASSWORD=$(openssl rand -hex 16)
 # Create .env
 cat > .env <<EOF
 NODE_ENV=production
+
+# Database Credentials
+POSTGRES_USER=bgpmon
+POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+POSTGRES_DB=bgpmon
 DATABASE_URL=postgresql://bgpmon:${POSTGRES_PASSWORD}@postgres:5432/bgpmon
+
+# Redis
 REDIS_URL=redis://redis:6379
 
+# Notifications
 TELEGRAM_BOT_TOKEN=
 TELEGRAM_CHAT_ID=
 
+# App Secrets
 JWT_SECRET=${JWT_SECRET}
 SUPERADMIN_USERNAME=${SA_USER}
 SUPERADMIN_PASSWORD=${SA_PASS}
