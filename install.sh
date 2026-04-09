@@ -17,16 +17,34 @@ echo -e "${GREEN}   BgpMonitoring - Secure Auto-Deploy Script     ${NC}"
 echo -e "${BLUE}=================================================${NC}"
 echo ""
 
-# 0. SAFETY CHECK
-# ------------------------------------------------------------------------------
-if [ -f .env ]; then
-    echo -e "${RED}Error: .env file already exists!${NC}"
-    echo -e "${YELLOW}It looks like BgpMonitoring is already installed.${NC}"
-    echo -e "${YELLOW}To update an existing installation, please run: ./update.sh${NC}"
-    exit 1
+COMPOSE_COMMAND="docker-compose"
+if docker compose version >/dev/null 2>&1; then
+    COMPOSE_COMMAND="docker compose"
 fi
 
-# 1. OS DETECTION & PREREQUISITES
+# 0. UPDATE MODE CHECK
+# ------------------------------------------------------------------------------
+if [ -f .env ]; then
+    echo -e "${YELLOW}>> .env file already exists! Activating UPDATE MODE...${NC}"
+    echo -e "${YELLOW}>> Fetching latest changes from GitHub...${NC}"
+    git fetch origin main || true
+    git reset --hard origin/main || true
+    
+    chmod +x install.sh 2>/dev/null || true
+
+    echo -e "${YELLOW}>> Rebuilding and applying updates...${NC}"
+    sudo $COMPOSE_COMMAND up -d --build
+    
+    echo -e "${YELLOW}>> Cleaning up unused Docker images...${NC}"
+    sudo docker image prune -f
+    
+    echo -e "${GREEN}=================================================${NC}"
+    echo -e "${GREEN} 🎉 UPDATE COMPLETE!                             ${NC}"
+    echo -e "${GREEN}=================================================${NC}"
+    exit 0
+fi
+
+# 1. OS DETECTION & PREREQUISITES (INSTALL MODE)
 # ------------------------------------------------------------------------------
 echo -e "${YELLOW}>> Checking OS and prerequisites...${NC}"
 
