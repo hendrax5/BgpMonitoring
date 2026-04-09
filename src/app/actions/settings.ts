@@ -38,11 +38,11 @@ export async function addRouterDevice(formData: FormData) {
 
     try {
         let sshCredentialId: number | null = null;
-        if (sshUser && sshPass) {
+        if (sshUser) {
             const cred = await (prisma as any).deviceCredential.upsert({
                 where: { tenantId_deviceIp: { tenantId: session.tenantId, deviceIp: ipAddress } },
                 create: { tenantId: session.tenantId, deviceIp: ipAddress, sshUser, sshPass, sshPort, vendor },
-                update: { sshUser, sshPass, sshPort, vendor },
+                update: { sshUser, sshPort, vendor, ...(sshPass ? { sshPass } : {}) },
             });
             sshCredentialId = cred.id;
         }
@@ -86,11 +86,20 @@ export async function updateRouterDevice(formData: FormData) {
         if (!existingRouter) redirect(`/settings?error=${encodeURIComponent('Router not found.')}`);
 
         let sshCredentialId: number | null = existingRouter.sshCredentialId;
-        if (sshUser && sshPass) {
+        if (sshCredentialId) {
+            const updateCredData: any = { sshUser, sshPort, vendor };
+            if (sshPass) updateCredData.sshPass = sshPass;
+            if (existingRouter.ipAddress !== ipAddress) updateCredData.deviceIp = ipAddress;
+            
+            await (prisma as any).deviceCredential.update({
+                where: { id: sshCredentialId },
+                data: updateCredData
+            });
+        } else if (sshUser) {
             const cred = await (prisma as any).deviceCredential.upsert({
                 where: { tenantId_deviceIp: { tenantId: session.tenantId, deviceIp: ipAddress } },
                 create: { tenantId: session.tenantId, deviceIp: ipAddress, sshUser, sshPass, sshPort, vendor },
-                update: { sshUser, sshPass, sshPort, vendor },
+                update: { sshUser, sshPort, vendor, ...(sshPass ? { sshPass } : {}) },
             });
             sshCredentialId = cred.id;
         }

@@ -42,6 +42,10 @@ function sanitizeShellOutput(raw: string, command: string, removeRegex?: string 
             }
             
             let skipLine = line.includes('---- More ----') || line.toLowerCase().includes('more') || line.includes('\b');
+            
+            // Filter out volatile timestamps to prevent false-positive config backups (e.g. ZTE timestamp_write)
+            if (line.includes('timestamp_write:')) skipLine = true;
+            
             if (customRegex && customRegex.test(line)) skipLine = true;
             
             if (!skipLine) {
