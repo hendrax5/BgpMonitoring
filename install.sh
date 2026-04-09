@@ -17,6 +17,15 @@ echo -e "${GREEN}   BgpMonitoring - Secure Auto-Deploy Script     ${NC}"
 echo -e "${BLUE}=================================================${NC}"
 echo ""
 
+# 0. SAFETY CHECK
+# ------------------------------------------------------------------------------
+if [ -f .env ]; then
+    echo -e "${RED}Error: .env file already exists!${NC}"
+    echo -e "${YELLOW}It looks like BgpMonitoring is already installed.${NC}"
+    echo -e "${YELLOW}To update an existing installation, please run: ./update.sh${NC}"
+    exit 1
+fi
+
 # 1. OS DETECTION & PREREQUISITES
 # ------------------------------------------------------------------------------
 echo -e "${YELLOW}>> Checking OS and prerequisites...${NC}"
