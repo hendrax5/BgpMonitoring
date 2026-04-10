@@ -65,6 +65,13 @@ export function scopedDb(tenantId: string) {
             update: (args: any) => (prisma as any).appUser.updateMany(withTenant(tenantId, args)),
             delete: (args: any) => (prisma as any).appUser.deleteMany(withTenant(tenantId, args)),
         },
+        alertChannel: {
+            findMany: (args?: any) => (prisma as any).alertChannel.findMany(withTenant(tenantId, args)),
+            findFirst: (args?: any) => (prisma as any).alertChannel.findFirst(withTenant(tenantId, args)),
+            create: (args: any) => (prisma as any).alertChannel.create({ ...args, data: { ...args.data, tenantId } }),
+            update: (args: any) => (prisma as any).alertChannel.updateMany(withTenant(tenantId, args)),
+            delete: (args: any) => (prisma as any).alertChannel.deleteMany(withTenant(tenantId, args)),
+        },
     };
 }
 

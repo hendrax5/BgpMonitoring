@@ -25,6 +25,7 @@ model Tenant {
   bgpLogs          BgpLog[]
   configBackups    DeviceConfigBackup[]
   settings         AppSettings[]
+  alertChannels    AlertChannel[]
 
   @@map("tenants")
 }
@@ -207,4 +208,22 @@ model VendorProfile {
   createdAt          DateTime @default(now()) @map("created_at")
 
   @@map("vendor_profile")
+}
+
+// ─── Alert Channels (per tenant) ──────────────────────────────────────────────
+model AlertChannel {
+  id           Int      @id @default(autoincrement())
+  tenantId     String   @map("tenant_id")
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name         String
+  provider     String   @default("telegram") // 'telegram', 'discord', 'slack', 'webhook'
+  webhookUrl   String?  @map("webhook_url")
+  chatId       String?  @map("chat_id")
+  botToken     String?  @map("bot_token")
+  eventTypes   String   @default("UP,DOWN,COMPLIANCE_FAILED") @map("event_types")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId])
+  @@map("alert_channel")
 }

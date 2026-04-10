@@ -287,3 +287,75 @@ export async function deleteVendorProfile(id: number) {
         redirect(`/settings?error=${encodeURIComponent(error.message)}`);
     }
 }
+
+// --- Alert Channels ---
+
+export async function addAlertChannel(formData: FormData) {
+    const session = await requireSession();
+    if (!can(session.role, 'monitoring.configAlerts')) {
+        redirect('/settings?error=Permission+denied');
+    }
+
+    const name = formData.get('name') as string;
+    const provider = formData.get('provider') as string;
+    const webhookUrl = formData.get('webhookUrl') as string || null;
+    const chatId = formData.get('chatId') as string || null;
+    const botToken = formData.get('botToken') as string || null;
+    const eventTypes = formData.get('eventTypes') as string || 'UP,DOWN,COMPLIANCE_FAILED';
+
+    if (!name || !provider) {
+        redirect('/settings?error=Name+and+Provider+are+required');
+    }
+
+    try {
+        await scopedDb(session.tenantId).alertChannel.create({
+            data: { name, provider, webhookUrl, chatId, botToken, eventTypes }
+        } as any);
+        revalidatePath('/settings');
+    } catch (error: any) {
+        if (error.message?.includes('NEXT_REDIRECT')) throw error;
+        redirect(`/settings?error=${encodeURIComponent(error.message)}`);
+    }
+}
+
+export async function updateAlertChannel(formData: FormData) {
+    const session = await requireSession();
+    if (!can(session.role, 'monitoring.configAlerts')) {
+        redirect('/settings?error=Permission+denied');
+    }
+
+    const id = parseInt(formData.get('id') as string);
+    const name = formData.get('name') as string;
+    const provider = formData.get('provider') as string;
+    const webhookUrl = formData.get('webhookUrl') as string || null;
+    const chatId = formData.get('chatId') as string || null;
+    const botToken = formData.get('botToken') as string || null;
+    const eventTypes = formData.get('eventTypes') as string || 'UP,DOWN';
+    const isActive = formData.get('isActive') === 'on';
+
+    try {
+        await scopedDb(session.tenantId).alertChannel.update({
+            where: { id },
+            data: { name, provider, webhookUrl, chatId, botToken, eventTypes, isActive }
+        } as any);
+        revalidatePath('/settings');
+    } catch (error: any) {
+        if (error.message?.includes('NEXT_REDIRECT')) throw error;
+        redirect(`/settings?error=${encodeURIComponent(error.message)}`);
+    }
+}
+
+export async function deleteAlertChannel(id: number) {
+    const session = await requireSession();
+    if (!can(session.role, 'monitoring.configAlerts')) return;
+
+    try {
+        await scopedDb(session.tenantId).alertChannel.delete({
+            where: { id }
+        } as any);
+        revalidatePath('/settings');
+    } catch (error: any) {
+        if (error.message?.includes('NEXT_REDIRECT')) throw error;
+        redirect(`/settings?error=${encodeURIComponent(error.message)}`);
+    }
+}

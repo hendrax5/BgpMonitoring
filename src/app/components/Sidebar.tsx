@@ -6,6 +6,7 @@ import { Suspense } from 'react';
 
 const navItems = [
   { href: '/', label: 'Overview', icon: 'dashboard' },
+  { href: '/topology', label: 'Network Topology', icon: 'account_tree' },
   { href: '/reports', label: 'BGP Event Log', icon: 'manage_history' },
   { href: '/config-management', label: 'Config Management', icon: 'settings_backup_restore' }
 ];

@@ -8,6 +8,7 @@ import RouterTestButton from '@/app/settings/components/RouterTestButton';
 import ImportDevicesButton from '@/app/settings/components/ImportDevicesButton';
 import SubmitButton from '@/app/components/SubmitButton';
 import UserProfileDropdown from '@/app/components/UserProfileDropdown';
+import AlertChannelsManager from '@/app/settings/components/AlertChannelsManager';
 import { revalidatePath } from 'next/cache';
 
 async function saveBranding(formData: FormData) {
@@ -27,9 +28,9 @@ async function saveBranding(formData: FormData) {
     revalidatePath('/settings');
 }
 
-export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ tab?: string; error?: string; success?: string; edit?: string; editUser?: string; editVendor?: string }> }) {
+export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ tab?: string; error?: string; success?: string; edit?: string; editUser?: string; editVendor?: string; editAlert?: string }> }) {
     const session = await requireSession();
-    const { tab, error, success, edit, editUser, editVendor } = await searchParams;
+    const { tab, error, success, edit, editUser, editVendor, editAlert } = await searchParams;
     const activeTab = tab || 'profile';
 
     const editId = edit ? parseInt(edit) : null;
@@ -50,7 +51,9 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     });
     const editUserObj = editUserId ? users.find((u: any) => u.id === editUserId) : null;
 
-    const telegram = await getTelegramSettings();
+    const alertChannels = await (prisma as any).alertChannel.findMany({ where: { tenantId: session.tenantId }, orderBy: { createdAt: 'asc' } });
+    const editAlertId = editAlert ? parseInt(editAlert) : null;
+    const editAlertObj = editAlertId ? alertChannels.find((a: any) => a.id === editAlertId) : null;
     const backupSettings = await getBackupSettings();
 
     const vendorProfiles = await (prisma as any).vendorProfile.findMany({
@@ -579,25 +582,8 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                                 </form>
                             </div>
 
-                            <div className="md:col-span-1 card p-5 bg-white/5 border border-white/5 rounded-2xl backdrop-blur-xl">
-                                <h4 className="font-bold text-white mb-1 flex items-center gap-2">
-                                    <span className="material-symbols-outlined text-blue-400 text-lg">send</span>
-                                    Telegram Alerts
-                                </h4>
-                                <p className="text-xs mb-4 text-zinc-400">Receive BGP Down/Up events. {telegram.botToken && <span className="text-emerald-400">✓ Configured</span>}</p>
-                                <form action={async (formData: FormData) => { 'use server'; await saveTelegramSettings(formData); }} className="space-y-3">
-                                    <div>
-                                        <label className="block text-xs font-medium text-zinc-400 mb-1">Bot Token</label>
-                                        <input type="password" name="telegram_bot_token" placeholder={telegram.botToken ? '(Tersimpan)' : '123456:ABC...'}
-                                            className="w-full bg-[#0a1019] border border-white/10 rounded-xl px-3 py-2 text-xs text-white" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-medium text-zinc-400 mb-1">Chat / Group ID</label>
-                                        <input type="text" name="telegram_chat_id" placeholder={telegram.chatId || '-100XXXX'} defaultValue={telegram.chatId}
-                                            className="w-full bg-[#0a1019] border border-white/10 rounded-xl px-3 py-2 text-xs text-white" />
-                                    </div>
-                                    <SubmitButton className="w-full py-2 text-sm font-bold rounded-xl text-white bg-blue-600">Simpan Telegram</SubmitButton>
-                                </form>
+                            <div className="md:col-span-3">
+                                <AlertChannelsManager alertChannels={alertChannels} editAlertObj={editAlertObj} />
                             </div>
                         </div>
                     </div>
