@@ -43,6 +43,29 @@ cron.schedule(CRON_SCHEDULE, runWorker);
 reloadBackupSchedule();
 cron.schedule('*/5 * * * *', reloadBackupSchedule); // Check for config changes every 5 mins
 
+// Daily Data Pruning (Execution at 02:00 AM)
+cron.schedule('0 2 * * *', async () => {
+    console.log(`[Data Retention] Running Daily Database Cleanup...`);
+    try {
+        const ninetyDaysAgo = new Date();
+        ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+        
+        // Clean Historical Events
+        const deletedEvents = await (prisma as any).historicalEvent.deleteMany({
+            where: { eventTimestamp: { lt: ninetyDaysAgo } }
+        });
+        
+        // Clean BGP Logs
+        const deletedLogs = await (prisma as any).bgpLog.deleteMany({
+            where: { fetchedAt: { lt: ninetyDaysAgo } }
+        });
+        
+        console.log(`[Data Retention] Cleanup completed! Deleted ${deletedEvents.count} historical events and ${deletedLogs.count} BGP logs older than 90 days.`);
+    } catch (e: any) {
+        console.error(`[Data Retention] Error during database cleanup: ${e.message}`);
+    }
+});
+
 // Start UDP Syslog Server
 startSyslogServer();
 

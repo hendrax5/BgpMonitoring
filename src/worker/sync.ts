@@ -169,10 +169,15 @@ async function pollTenant(tenantId: string, tenantSlug: string) {
         return;
     }
 
-    // ⚡ A+D: Poll all devices in parallel; skip any device whose previous poll is still running.
-    await Promise.all(devices.map(device =>
-        pollDeviceWithGuard(device, tenantId, tenantSlug, telegramBotToken, telegramChatId)
-    ));
+    // ⚡ Implement Batching/Chunking for Enterprise Scalability
+    const CHUNK_SIZE = 20;
+    for (let i = 0; i < devices.length; i += CHUNK_SIZE) {
+        const chunk = devices.slice(i, i + CHUNK_SIZE);
+        console.log(`[${tenantSlug}] Processing chunk ${Math.floor(i / CHUNK_SIZE) + 1} (${chunk.length} devices)...`);
+        await Promise.allSettled(chunk.map(device =>
+            pollDeviceWithGuard(device, tenantId, tenantSlug, telegramBotToken, telegramChatId)
+        ));
+    }
 
     console.log(`[${new Date().toISOString()}] [${tenantSlug}] Polling cycle complete.`);
 }
@@ -296,6 +301,17 @@ async function pollDevice(
             }
 
             const wasUp = existingState.bgpState === 'Established';
+            
+            // FLAP SUPPRESSION LOGIC
+            const flapKey = `BgpFlap:${tenantId}:${device.id}:${session.peerIp}`;
+            const FLAP_THRESHOLD = 3;
+            // Limit event checking stringency to avoid database explosions
+            
+            if (wasUp !== isUp) {
+                const flaps = await redis.incr(flapKey);
+                // Reset counter every 5 minutes if it wasn't already set
+                if (flaps === 1) await redis.expire(flapKey, 300);
+            }
 
             if (wasUp && !isUp) {
                 // UP → DOWN
@@ -308,7 +324,12 @@ async function pollDevice(
                         asn: session.remoteAsn, organizationName: orgName, eventType: 'DOWN'
                     }
                 });
-                sendTelegramAlert('DOWN', session, orgName, undefined, telegramBotToken, telegramChatId).catch(() => {});
+                const flaps = parseInt(await redis.get(`BgpFlap:${tenantId}:${device.id}:${session.peerIp}`) || '0');
+                if (flaps > FLAP_THRESHOLD) {
+                    console.log(`🔕 [Flap Suppressed] Router ${session.deviceName} / Peer ${session.peerIp} is flapping (${flaps} times). Alert suppressed.`);
+                } else {
+                    sendTelegramAlert('DOWN', session, orgName, undefined, telegramBotToken, telegramChatId).catch(() => {});
+                }
                 currentStateObj.stateChangedAt = new Date().toISOString();
             } else if (!wasUp && isUp) {
                 // DOWN → UP
@@ -331,7 +352,13 @@ async function pollDevice(
                         eventType: 'UP', downEventId, downtimeDuration
                     }
                 });
-                sendTelegramAlert('UP', session, orgName, downtimeDuration ?? undefined, telegramBotToken, telegramChatId).catch(() => {});
+                
+                const flaps = parseInt(await redis.get(`BgpFlap:${tenantId}:${device.id}:${session.peerIp}`) || '0');
+                if (flaps > FLAP_THRESHOLD) {
+                    console.log(`🔕 [Flap Suppressed] Router ${session.deviceName} / Peer ${session.peerIp} is flapping (${flaps} times). Alert suppressed.`);
+                } else {
+                    sendTelegramAlert('UP', session, orgName, downtimeDuration ?? undefined, telegramBotToken, telegramChatId).catch(() => {});
+                }
                 currentStateObj.stateChangedAt = new Date().toISOString();
             }
 
