@@ -26,9 +26,10 @@ fi
 # ------------------------------------------------------------------------------
 if [ -f .env ]; then
     echo -e "${YELLOW}>> .env file already exists! Activating UPDATE MODE...${NC}"
-    echo -e "${YELLOW}>> Fetching latest changes from GitHub...${NC}"
-    git fetch origin main || true
-    git reset --hard origin/main || true
+    CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")
+    echo -e "${YELLOW}>> Fetching latest changes from GitHub ($CURRENT_BRANCH)...${NC}"
+    git fetch origin $CURRENT_BRANCH || true
+    git reset --hard origin/$CURRENT_BRANCH || true
     
     chmod +x install.sh 2>/dev/null || true
 
