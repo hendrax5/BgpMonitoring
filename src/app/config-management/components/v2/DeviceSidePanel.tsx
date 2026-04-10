@@ -158,6 +158,14 @@ export default function DeviceSidePanel({
                                         >
                                             View Source
                                         </button>
+                                        {idx > 0 && (
+                                            <button 
+                                                onClick={() => onCompare(b, backups[0])}
+                                                className="flex-1 bg-indigo-500/10 hover:bg-indigo-600 text-indigo-400 hover:text-white border border-indigo-500/30 hover:border-indigo-500/80 text-xs py-2 rounded-lg transition-all font-bold group-hover:shadow-[0_0_15px_rgba(99,102,241,0.2)]"
+                                            >
+                                                Diff vs Latest
+                                            </button>
+                                        )}
                                         {(userRole === 'superadmin' || userRole === 'orgadmin') && (
                                             <button 
                                                 onClick={() => onRollback(b)}
