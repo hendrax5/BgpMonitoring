@@ -113,6 +113,7 @@ export async function backupRouterConfigs() {
             let configText = await fetchConfigViaSSH(router.ipAddress, cred.sshPort, cred.sshUser, cred.sshPass, configCmd, connectionMode, pagingCmd, router.vendor);
             
             console.log(`[Config Worker DEBUG] Raw output size from ${connectionMode}: ${configText?.length} bytes`);
+            console.log(`[Config Worker DEBUG] EXACT OUTPUT: ${JSON.stringify(configText)}`);
             
             if (connectionMode === 'shell' || connectionMode === 'telnet') {
                 configText = sanitizeShellOutput(configText, configCmd, removeRegex);
@@ -223,6 +224,9 @@ function fetchConfigViaSSH(host: string, port: number, user: string, pass: strin
                 }
                 
                 
+                const isHuawei = vendor.toLowerCase().includes('huawei');
+                const isRuijie = vendor.toLowerCase().includes('ruijie');
+
                 const connectPromise = conn.connect({
                     host: host,
                     port: port || 23,
@@ -232,17 +236,17 @@ function fetchConfigViaSSH(host: string, port: number, user: string, pass: strin
                     passwordPrompt: /[Pp]assword:/i,
                     initialLFFlush: false,
                     failedLoginMatch: /%Error|bad password|authentication failure/i,
-                    shellPrompt: /(>|#|\]|%)\s*$/,
+                    shellPrompt: isHuawei ? /(>|\])\s*$/ : /(>|#|\]|%)\s*$/,
                     timeout: 45000,
                     execTimeout: 300000,
                     sendTimeout: 20000,
                     echoLines: 0,
-                    negotiationMandatory: false,
+                    negotiationMandatory: true,
                     pageSeparator: /--.*More.*--|---- More.*|Press any key.*/i,
                     pageNext: ' '
                 });
 
-                if (vendor.toLowerCase().includes('ruijie')) {
+                if (isRuijie) {
                     setTimeout(() => {
                         try {
                             const sock = conn.getSocket();
@@ -260,7 +264,7 @@ function fetchConfigViaSSH(host: string, port: number, user: string, pass: strin
                 
                 // Flush the leftover prompt buffer from connect() by sending an empty return
                 // Skip flush for Ruijie and Huawei to prevent consuming prompt out of sync or socket hangs
-                if (!vendor.toLowerCase().includes('ruijie') && !vendor.toLowerCase().includes('huawei')) {
+                if (!isRuijie && !isHuawei) {
                     try { 
                         console.log(`[Config Worker DEBUG] Executing Flush for ${host}`); 
                         await conn.exec('\r\n'); 
@@ -269,6 +273,15 @@ function fetchConfigViaSSH(host: string, port: number, user: string, pass: strin
                     }
                 }
                 
+                if (isHuawei) {
+                    try {
+                        console.log(`[Config Worker DEBUG] Disabling paging for Huawei ${host}`);
+                        await conn.exec('screen-length 0 temporary');
+                    } catch (e: any) {
+                        console.log(`[Config Worker DEBUG] Failed to set screen-length for Huawei ${host}:`, e.message);
+                    }
+                }
+
                 if (pagingCmd) {
                     try {
                         console.log(`[Config Worker DEBUG] Executing Paging for ${host}`);
