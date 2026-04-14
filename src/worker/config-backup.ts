@@ -183,6 +183,29 @@ export async function backupRouterConfigs() {
     console.log('[Config Worker] Configuration Backup Job Finished.');
 }
 
+const LEGACY_ALGORITHMS = {
+    kex: [
+        'diffie-hellman-group1-sha1',
+        'diffie-hellman-group14-sha1',
+        'diffie-hellman-group-exchange-sha1',
+        'diffie-hellman-group-exchange-sha256',
+        'ecdh-sha2-nistp256',
+        'ecdh-sha2-nistp384',
+        'ecdh-sha2-nistp521'
+    ],
+    cipher: [
+        'aes128-ctr', 'aes192-ctr', 'aes256-ctr',
+        'aes128-cbc', 'aes192-cbc', 'aes256-cbc',
+        '3des-cbc'
+    ],
+    serverHostKey: [
+        'ssh-rsa', 'ssh-dss', 'ecdsa-sha2-nistp256'
+    ],
+    hmac: [
+        'hmac-sha2-256', 'hmac-sha2-512', 'hmac-sha1', 'hmac-sha1-96', 'hmac-md5'
+    ]
+};
+
 function fetchConfigViaSSH(host: string, port: number, user: string, pass: string, command: string, connectionMode: string, pagingCmd: string | null, vendor: string = ''): Promise<string> {
 
     // -----------------------------------------------------
@@ -214,7 +237,7 @@ function fetchConfigViaSSH(host: string, port: number, user: string, pass: strin
                     execTimeout: 300000,
                     sendTimeout: 20000,
                     echoLines: 0,
-                    negotiationMandatory: true,
+                    negotiationMandatory: false,
                     pageSeparator: /--.*More.*--|---- More.*|Press any key.*/i,
                     pageNext: ' '
                 });
@@ -330,7 +353,7 @@ function fetchConfigViaSSH(host: string, port: number, user: string, pass: strin
             }).on('error', (err: any) => {
                 clearTimeout(timeout);
                 reject(err);
-            }).connect({ host, port, username: user, password: pass, readyTimeout: 15000 });
+            }).connect({ host, port, username: user, password: pass, readyTimeout: 15000, algorithms: LEGACY_ALGORITHMS });
         });
     }
 
@@ -366,6 +389,6 @@ function fetchConfigViaSSH(host: string, port: number, user: string, pass: strin
         }).on('error', (err: any) => {
             clearTimeout(timeout);
             reject(err);
-        }).connect({ host, port, username: user, password: pass, readyTimeout: 12000 });
+        }).connect({ host, port, username: user, password: pass, readyTimeout: 12000, algorithms: LEGACY_ALGORITHMS });
     });
 }
