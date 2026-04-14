@@ -353,7 +353,7 @@ function fetchConfigViaSSH(host: string, port: number, user: string, pass: strin
             }).on('error', (err: any) => {
                 clearTimeout(timeout);
                 reject(err);
-            }).connect({ host, port, username: user, password: pass, readyTimeout: 15000, algorithms: LEGACY_ALGORITHMS });
+            }).connect({ host, port, username: user, password: pass, readyTimeout: 15000, algorithms: LEGACY_ALGORITHMS as any });
         });
     }
 
@@ -389,6 +389,6 @@ function fetchConfigViaSSH(host: string, port: number, user: string, pass: strin
         }).on('error', (err: any) => {
             clearTimeout(timeout);
             reject(err);
-        }).connect({ host, port, username: user, password: pass, readyTimeout: 12000, algorithms: LEGACY_ALGORITHMS });
+        }).connect({ host, port, username: user, password: pass, readyTimeout: 12000, algorithms: LEGACY_ALGORITHMS as any });
     });
 }
