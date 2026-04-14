@@ -232,7 +232,7 @@ function fetchConfigViaSSH(host: string, port: number, user: string, pass: strin
                     passwordPrompt: /[Pp]assword:/i,
                     initialLFFlush: false,
                     failedLoginMatch: /%Error|bad password|authentication failure/i,
-                    shellPrompt: /(>|#)\s*$/,
+                    shellPrompt: /(>|#|\]|%)\s*$/,
                     timeout: 45000,
                     execTimeout: 300000,
                     sendTimeout: 20000,
@@ -259,8 +259,8 @@ function fetchConfigViaSSH(host: string, port: number, user: string, pass: strin
                 console.log(`[Config Worker DEBUG] connect() RESOLVED for ${host}`);
                 
                 // Flush the leftover prompt buffer from connect() by sending an empty return
-                // Skip flush for Ruijie to prevent consuming prompt out of sync
-                if (!vendor.toLowerCase().includes('ruijie')) {
+                // Skip flush for Ruijie and Huawei to prevent consuming prompt out of sync or socket hangs
+                if (!vendor.toLowerCase().includes('ruijie') && !vendor.toLowerCase().includes('huawei')) {
                     try { 
                         console.log(`[Config Worker DEBUG] Executing Flush for ${host}`); 
                         await conn.exec('\r\n'); 
