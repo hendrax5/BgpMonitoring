@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import SortableHeader from './SortableHeader';
@@ -15,6 +15,11 @@ export default function BgpSessionsTable({ allSessions }: { allSessions: any[] }
   const totalPages = Math.ceil(allSessions.length / ITEMS_PER_PAGE) || 1;
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
   const paginatedSessions = allSessions.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+
+  // Reset to page 1 whenever the filtered dataset changes (e.g. after applying a filter)
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [allSessions.length]);
 
   // Build export URL that mirrors current active filters
   const exportParams = new URLSearchParams();
@@ -104,7 +109,11 @@ export default function BgpSessionsTable({ allSessions }: { allSessions: any[] }
                       role="status"
                       aria-label={isUp ? 'Session established' : 'Session down'}
                     >
-                      <span className="dot" style={{ backgroundColor: isUp ? '#10b981' : '#f43f5e' }} aria-hidden="true" />
+                      <span
+                        className={`dot${!isUp ? ' dot-pulse' : ''}`}
+                        style={{ backgroundColor: isUp ? '#10b981' : '#f43f5e' }}
+                        aria-hidden="true"
+                      />
                       {isUp ? 'Established' : 'Down'}
                     </span>
                   </td>

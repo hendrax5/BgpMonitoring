@@ -179,7 +179,14 @@ export default async function DashboardContent({ session, searchParams }: Props)
         <Link
           href={hrefDown}
           className="card p-5 block transition-all focus-ring"
-          style={{ borderColor: status === 'down' ? 'rgba(244,63,94,0.4)' : undefined }}
+          style={{
+            borderColor: downSessions > 0
+              ? 'rgba(244,63,94,0.5)'
+              : (status === 'down' ? 'rgba(244,63,94,0.4)' : undefined),
+            boxShadow: downSessions > 0
+              ? '0 0 0 1px rgba(244,63,94,0.2), 0 4px 24px rgba(244,63,94,0.15)'
+              : undefined,
+          }}
           aria-label={`${downSessions} sessions down${downSessions > 0 ? ' — click to filter' : ''}`}
           aria-pressed={status === 'down'}
         >
@@ -194,7 +201,9 @@ export default async function DashboardContent({ session, searchParams }: Props)
             )}
           </div>
           <p className="text-sm mb-1" style={{ color: '#64748b' }}>Sessions Down</p>
-          <p className="text-3xl font-bold text-white">{downSessions}</p>
+          <p className="text-3xl font-bold" style={{ color: downSessions > 0 ? '#f43f5e' : 'white' }}>
+            {downSessions}
+          </p>
           {downSessions > 0 ? (
             <p className="text-[10px] mt-2 flex items-center gap-1" style={{ color: '#f43f5e' }}>
               <span className="material-symbols-outlined text-sm" aria-hidden="true">filter_alt</span>

@@ -149,8 +149,13 @@ export default function AlarmManager() {
                 URGENT: {downCount} DOWN
             </div>
 
-            {/* Fade Carousel */}
-            <div className="flex-1 relative h-full flex items-center justify-center bg-[#e11d48] overflow-hidden px-4">
+            {/* Fade Carousel — aria-live so screen readers announce session changes */}
+            <div
+              className="flex-1 relative h-full flex items-center justify-center bg-[#e11d48] overflow-hidden px-4"
+              aria-live="assertive"
+              aria-atomic="true"
+              role="status"
+            >
                 {activeSession && (
                     <div key={activeSession.peerIp + activeIndex} className="animate-fade-in flex items-center gap-2">
                         <Link href={`/peers/${encodeURIComponent(activeSession.peerIp)}`} className="text-[13px] text-white/95 font-mono tracking-wide hover:text-white hover:underline transition flex items-center gap-1.5 focus-ring px-2 py-0.5 rounded">

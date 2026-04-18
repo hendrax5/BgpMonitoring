@@ -1,9 +1,8 @@
 'use server';
 
-import { prisma } from '@/lib/prisma';
-import { redis } from '@/lib/redis';
 import { requireSession } from '@/lib/auth';
-import { scopedDb } from '@/lib/scoped-db';
+import { can } from '@/lib/rbac';
+import { DeviceService } from '@/services/device.service';
 import { can } from '@/lib/rbac';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
@@ -17,38 +16,21 @@ export async function addRouterDevice(formData: FormData) {
     if (!can(session.role, 'device.manage')) {
         redirect('/settings?error=Permission+denied%3A+only+OrgAdmin+and+above+can+add+devices.');
     }
-    const db = scopedDb(session.tenantId);
-
-    const hostname = formData.get('hostname') as string;
-    const ipAddress = formData.get('ipAddress') as string;
-    const vendor = formData.get('vendor') as string;
-    const pollMethod = formData.get('pollMethod') as string;
-    const snmpVersion = formData.get('snmpVersion') as string;
-    const snmpCommunity = formData.get('snmpCommunity') as string;
-    const snmpPort = parseInt(formData.get('snmpPort') as string || '161', 10);
-    const sshUser = (formData.get('sshUser') as string || '').trim();
-    const sshPass = (formData.get('sshPass') as string || '').trim();
-    const sshPort = parseInt(formData.get('sshPort') as string || '22', 10);
-    const isBgpMonitoring = formData.get('isBgpMonitoring') === 'on';
-    const isConfigBackup = formData.get('isConfigBackup') === 'on';
-
-    if (!hostname || !ipAddress || !vendor || !pollMethod) {
-        redirect(`/settings?error=${encodeURIComponent('Hostname, IP Address, Vendor, and Polling Method are required.')}`);
-    }
 
     try {
-        let sshCredentialId: number | null = null;
-        if (sshUser) {
-            const cred = await (prisma as any).deviceCredential.upsert({
-                where: { tenantId_deviceIp: { tenantId: session.tenantId, deviceIp: ipAddress } },
-                create: { tenantId: session.tenantId, deviceIp: ipAddress, sshUser, sshPass, sshPort, vendor },
-                update: { sshUser, sshPort, vendor, ...(sshPass ? { sshPass } : {}) },
-            });
-            sshCredentialId = cred.id;
-        }
-
-        await db.routerDevice.create({
-            data: { hostname, ipAddress, vendor, pollMethod, snmpVersion, snmpCommunity, snmpPort, sshCredentialId, isBgpMonitoring, isConfigBackup }
+        await DeviceService.addDevice(session.tenantId, {
+            hostname: formData.get('hostname') as string,
+            ipAddress: formData.get('ipAddress') as string,
+            vendor: formData.get('vendor') as string,
+            pollMethod: formData.get('pollMethod') as string,
+            snmpVersion: formData.get('snmpVersion') as string,
+            snmpCommunity: formData.get('snmpCommunity') as string,
+            snmpPort: parseInt(formData.get('snmpPort') as string || '161', 10),
+            sshUser: (formData.get('sshUser') as string || '').trim(),
+            sshPass: (formData.get('sshPass') as string || '').trim(),
+            sshPort: parseInt(formData.get('sshPort') as string || '22', 10),
+            isBgpMonitoring: formData.get('isBgpMonitoring') === 'on',
+            isConfigBackup: formData.get('isConfigBackup') === 'on',
         });
     } catch (error: any) {
         if (error.message?.includes('NEXT_REDIRECT')) throw error;
@@ -64,54 +46,21 @@ export async function updateRouterDevice(formData: FormData) {
     }
 
     const id = parseInt(formData.get('id') as string);
-    const hostname = formData.get('hostname') as string;
-    const ipAddress = formData.get('ipAddress') as string;
-    const vendor = formData.get('vendor') as string;
-    const pollMethod = formData.get('pollMethod') as string;
-    const snmpVersion = formData.get('snmpVersion') as string;
-    const snmpCommunity = formData.get('snmpCommunity') as string;
-    const snmpPort = parseInt(formData.get('snmpPort') as string || '161', 10);
-    const sshUser = (formData.get('sshUser') as string || '').trim();
-    const sshPass = (formData.get('sshPass') as string || '').trim();
-    const sshPort = parseInt(formData.get('sshPort') as string || '22', 10);
-    const isBgpMonitoring = formData.get('isBgpMonitoring') === 'on';
-    const isConfigBackup = formData.get('isConfigBackup') === 'on';
-
-    if (!id || !hostname || !ipAddress) {
-        redirect(`/settings?error=${encodeURIComponent('Hostname and IP Address are required.')}`);
-    }
-
     try {
-        const existingRouter = await (prisma as any).routerDevice.findFirst({ where: { id, tenantId: session.tenantId } });
-        if (!existingRouter) redirect(`/settings?error=${encodeURIComponent('Router not found.')}`);
-
-        let sshCredentialId: number | null = existingRouter.sshCredentialId;
-        if (sshCredentialId) {
-            const updateCredData: any = { sshUser, sshPort, vendor };
-            if (sshPass) updateCredData.sshPass = sshPass;
-            if (existingRouter.ipAddress !== ipAddress) updateCredData.deviceIp = ipAddress;
-            
-            await (prisma as any).deviceCredential.update({
-                where: { id: sshCredentialId },
-                data: updateCredData
-            });
-        } else if (sshUser) {
-            const cred = await (prisma as any).deviceCredential.upsert({
-                where: { tenantId_deviceIp: { tenantId: session.tenantId, deviceIp: ipAddress } },
-                create: { tenantId: session.tenantId, deviceIp: ipAddress, sshUser, sshPass, sshPort, vendor },
-                update: { sshUser, sshPort, vendor, ...(sshPass ? { sshPass } : {}) },
-            });
-            sshCredentialId = cred.id;
-        }
-
-        const updateData = { hostname, ipAddress, vendor, pollMethod, snmpVersion, snmpCommunity, snmpPort, sshCredentialId, isBgpMonitoring, isConfigBackup };
-
-        if (existingRouter.hostname !== hostname || existingRouter.isBgpMonitoring !== isBgpMonitoring) {
-            const oldKeys = await redis.keys(`BgpSession:${session.tenantId}:${existingRouter.hostname}:*`);
-            if (oldKeys.length > 0) await redis.del(...oldKeys);
-        }
-
-        await (prisma as any).routerDevice.update({ where: { id }, data: updateData });
+        await DeviceService.updateDevice(session.tenantId, id, {
+            hostname: formData.get('hostname') as string,
+            ipAddress: formData.get('ipAddress') as string,
+            vendor: formData.get('vendor') as string,
+            pollMethod: formData.get('pollMethod') as string,
+            snmpVersion: formData.get('snmpVersion') as string,
+            snmpCommunity: formData.get('snmpCommunity') as string,
+            snmpPort: parseInt(formData.get('snmpPort') as string || '161', 10),
+            sshUser: (formData.get('sshUser') as string || '').trim(),
+            sshPass: (formData.get('sshPass') as string || '').trim(),
+            sshPort: parseInt(formData.get('sshPort') as string || '22', 10),
+            isBgpMonitoring: formData.get('isBgpMonitoring') === 'on',
+            isConfigBackup: formData.get('isConfigBackup') === 'on',
+        });
     } catch (error: any) {
         if (error.message?.includes('NEXT_REDIRECT')) throw error;
         redirect(`/settings?error=${encodeURIComponent(error.message || 'Failed to update router.')}`);
@@ -124,12 +73,7 @@ export async function deleteRouterDevice(id: number) {
     if (!can(session.role, 'device.manage')) return;
 
     try {
-        const existing = await (prisma as any).routerDevice.findFirst({ where: { id, tenantId: session.tenantId } });
-        if (existing) {
-            const redisKeys = await redis.keys(`BgpSession:${session.tenantId}:${existing.hostname}:*`);
-            if (redisKeys.length > 0) await redis.del(...redisKeys);
-            await (prisma as any).routerDevice.delete({ where: { id } });
-        }
+        await DeviceService.deleteDevice(session.tenantId, id);
         revalidatePath('/settings');
     } catch (error: any) {
         if (error.message?.includes('NEXT_REDIRECT')) throw error;

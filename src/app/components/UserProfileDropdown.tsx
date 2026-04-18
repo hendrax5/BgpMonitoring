@@ -31,6 +31,7 @@ export default function UserProfileDropdown({ username, role }: UserProfileDropd
         style={{ border: '1px solid rgba(255,255,255,0.07)' }}
         aria-expanded={isOpen}
         aria-haspopup="true"
+        aria-label={`User profile menu for ${username || 'User'}`}
       >
         <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-xs font-bold text-white uppercase">
           {username?.charAt(0) || 'U'}

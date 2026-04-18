@@ -1,15 +1,15 @@
 import type { Metadata } from "next";
-import { Space_Grotesk } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
 import Sidebar from "@/app/components/Sidebar";
 import AlarmManager from "@/app/components/AlarmManager";
+import CommandPalette from "@/app/components/CommandPalette";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-const spaceGrotesk = Space_Grotesk({
-  variable: "--font-space-grotesk",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
 });
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -69,7 +69,7 @@ export default async function RootLayout({
         />
       </head>
       <body
-        className={`${spaceGrotesk.variable} font-sans antialiased h-full flex`}
+        className={`${inter.variable} font-sans antialiased h-full flex`}
         style={{ backgroundColor: '#101c22', color: '#f1f5f9' }}
       >
         <Sidebar
@@ -78,9 +78,13 @@ export default async function RootLayout({
           monitoringName={monitoringName}
           companyName={companyName}
         />
-        <div className="flex-1 flex flex-col min-h-screen overflow-auto relative">
+        <CommandPalette />
+        {/* Main content area: flex-col ensures AlarmManager banner PUSHES children down, not overlaps */}
+        <div className="flex-1 flex flex-col min-h-screen overflow-auto">
           <AlarmManager />
-          {children}
+          <div className="flex-1 flex flex-col">
+            {children}
+          </div>
         </div>
       </body>
     </html>

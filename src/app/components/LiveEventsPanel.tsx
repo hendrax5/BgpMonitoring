@@ -56,7 +56,7 @@ export default function LiveEventsPanel({ devices }: Props) {
     // Auto-fetch on mount and when device selection changes
     useEffect(() => {
         if (devices.length > 0) fetchEvents(selectedDeviceId);
-    }, [selectedDeviceId]);
+    }, [selectedDeviceId, devices]);
 
     const displayed = events; // already filtered by API
 
@@ -150,9 +150,17 @@ export default function LiveEventsPanel({ devices }: Props) {
                                         {event.deviceName} <span style={{ color: '#64748b' }}>({event.vendor})</span>
                                     </span>
                                 </div>
-                                <pre className="text-[11px] font-mono whitespace-pre-wrap overflow-x-auto p-3 rounded" style={{ backgroundColor: '#0f172a', color: '#94a3b8', border: '1px solid rgba(255,255,255,0.05)', maxHeight: '400px', overflowY: 'auto' }}>
-                                    {event.output || event.message || "No output returned"}
-                                </pre>
+                                <pre 
+                                    className="text-[11px] font-mono whitespace-pre-wrap overflow-x-auto p-3 rounded" 
+                                    style={{ backgroundColor: '#0f172a', color: '#94a3b8', border: '1px solid rgba(255,255,255,0.05)', maxHeight: '400px', overflowY: 'auto' }}
+                                    dangerouslySetInnerHTML={{
+                                        __html: (event.output || event.message || "No output returned")
+                                            .replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                                            .replace(/\b(UP|Established|ESTAB|BGP_ESTABLISHED|Full)\b/g, '<span style="color:#10b981;font-weight:bold;">$1</span>')
+                                            .replace(/\b(DOWN|Idle|Active|Connect|OpenConfirm|Admin)\b/g, '<span style="color:#f43f5e;font-weight:bold;">$1</span>')
+                                            .replace(/\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b/g, '<span style="color:#38bdf8;">$1</span>')
+                                    }}
+                                />
                             </div>
                         ))}
                     </div>

@@ -88,7 +88,10 @@ function DashboardFiltersInner({ devices, tenants }: Props) {
                             value={currentTenant}
                             onChange={(e) => handleTenantChange(e.target.value)}
                             className={`form-select text-sm font-bold ${isPending ? 'opacity-50 pointer-events-none' : ''}`}
-                            style={{ width: 'auto', minWidth: '140px' }}
+                            style={{ 
+                                width: 'auto', minWidth: '140px',
+                                ...(currentTenant !== 'all' ? { borderColor: '#3b82f6', color: '#60a5fa', backgroundColor: 'rgba(59,130,246,0.1)' } : {})
+                            }}
                             disabled={isPending}
                             aria-label="Filter by tenant"
                         >
@@ -110,7 +113,10 @@ function DashboardFiltersInner({ devices, tenants }: Props) {
                     value={currentDevice}
                     onChange={(e) => handleDeviceChange(e.target.value)}
                     className={`form-select text-sm ${isPending ? 'opacity-50 pointer-events-none' : ''}`}
-                    style={{ width: 'auto', minWidth: '140px' }}
+                    style={{ 
+                        width: 'auto', minWidth: '140px',
+                        ...(currentDevice !== 'all' ? { borderColor: '#3b82f6', color: '#60a5fa', backgroundColor: 'rgba(59,130,246,0.1)' } : {})
+                    }}
                     disabled={isPending}
                     aria-label="Filter by device"
                 >
