@@ -19,10 +19,21 @@ export interface BgpPeer {
     description: string | null;
     adminStatus: string;
     deviceId: number | null;
+    tenantName: string | null;
+    lastPushStatus: string | null;
+    lastPushedAt: string | null;
     updatedAt: string;
 }
 
-interface DeviceOpt { id: number; hostname: string; ipAddress: string; }
+export interface LiveMatch {
+    bgpState: string;
+    acceptedPrefixes: number;
+    advertisedPrefixes: number;
+    deviceName: string;
+}
+
+interface DeviceOpt { id: number; hostname: string; ipAddress: string; vendor?: string; }
+interface TenantOpt { id: string; name: string; }
 
 const AF_OPTIONS = [
     { value: 'ipv4-unicast', label: 'IPv4 Unicast' },
@@ -31,7 +42,6 @@ const AF_OPTIONS = [
     { value: 'vpnv6', label: 'VPNv6' },
     { value: 'l2vpn-evpn', label: 'L2VPN EVPN' },
 ];
-
 const AF_LABEL: Record<string, string> = Object.fromEntries(AF_OPTIONS.map(o => [o.value, o.label]));
 
 const STATUS_META: Record<string, { label: string; cls: string; color: string }> = {
@@ -41,13 +51,15 @@ const STATUS_META: Record<string, { label: string; cls: string; color: string }>
 };
 
 export default function BgpPeerManager({
-    peers,
-    devices,
-    canManage,
+    peers, devices, canManage, liveMap, isSuperAdmin, tenants, activeTenant,
 }: {
     peers: BgpPeer[];
     devices: DeviceOpt[];
     canManage: boolean;
+    liveMap: Record<string, LiveMatch>;
+    isSuperAdmin: boolean;
+    tenants: TenantOpt[];
+    activeTenant: string | null;
 }) {
     const router = useRouter();
     const [search, setSearch] = useState('');
@@ -58,6 +70,16 @@ export default function BgpPeerManager({
     const [formError, setFormError] = useState('');
     const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
     const [isPending, startTransition] = useTransition();
+
+    // Push modal state
+    const [pushPeer, setPushPeer] = useState<BgpPeer | null>(null);
+    const [pushLoading, setPushLoading] = useState(false);
+    const [pushApplying, setPushApplying] = useState(false);
+    const [pushData, setPushData] = useState<{ config: string; vendor: string; device: any } | null>(null);
+    const [pushResult, setPushResult] = useState<{ ok: boolean; text: string } | null>(null);
+
+    const showTenantCol = isSuperAdmin && !activeTenant;
+    const canAdd = canManage && (!isSuperAdmin || !!activeTenant);
 
     const filtered = useMemo(() => {
         const q = search.toLowerCase().trim();
@@ -78,15 +100,12 @@ export default function BgpPeerManager({
         setTimeout(() => setToast(null), 3500);
     }
 
-    function openAdd() {
-        setEditing(null);
-        setFormError('');
-        setModalOpen(true);
-    }
-    function openEdit(p: BgpPeer) {
-        setEditing(p);
-        setFormError('');
-        setModalOpen(true);
+    function openAdd() { setEditing(null); setFormError(''); setModalOpen(true); }
+    function openEdit(p: BgpPeer) { setEditing(p); setFormError(''); setModalOpen(true); }
+
+    function handleTenantChange(v: string) {
+        const url = v === 'all' ? '/bgp-peers' : `/bgp-peers?tenant=${encodeURIComponent(v)}`;
+        startTransition(() => router.push(url));
     }
 
     function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -94,9 +113,7 @@ export default function BgpPeerManager({
         setFormError('');
         const formData = new FormData(e.currentTarget);
         startTransition(async () => {
-            const res = editing
-                ? await updateBgpPeer(formData)
-                : await createBgpPeer(formData);
+            const res = editing ? await updateBgpPeer(formData) : await createBgpPeer(formData);
             if (res.success) {
                 setModalOpen(false);
                 showToast(editing ? 'BGP peer updated.' : 'BGP peer created.', true);
@@ -125,39 +142,94 @@ export default function BgpPeerManager({
         });
     }
 
+    // ── Push to Router ──
+    async function openPush(p: BgpPeer) {
+        setPushPeer(p);
+        setPushData(null);
+        setPushResult(null);
+        setPushLoading(true);
+        try {
+            const res = await fetch('/api/bgp-peers/push', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: p.id, dryRun: true }),
+            });
+            const data = await res.json();
+            if (res.ok) setPushData({ config: data.config, vendor: data.vendor, device: data.device });
+            else setPushResult({ ok: false, text: data.error || 'Failed to generate config.' });
+        } catch (e: any) {
+            setPushResult({ ok: false, text: e.message });
+        }
+        setPushLoading(false);
+    }
+
+    async function applyPush() {
+        if (!pushPeer) return;
+        setPushApplying(true);
+        setPushResult(null);
+        try {
+            const res = await fetch('/api/bgp-peers/push', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: pushPeer.id, dryRun: false }),
+            });
+            const data = await res.json();
+            if (res.ok) {
+                setPushResult({ ok: true, text: data.output || 'Configuration applied successfully.' });
+                showToast('Config pushed to router.', true);
+                router.refresh();
+            } else {
+                setPushResult({ ok: false, text: (data.error || 'Push failed') + (data.output ? `\n\n${data.output}` : '') });
+                showToast('Push failed — see details.', false);
+                router.refresh();
+            }
+        } catch (e: any) {
+            setPushResult({ ok: false, text: e.message });
+        }
+        setPushApplying(false);
+    }
+
+    const colSpan = 7 + (showTenantCol ? 1 : 0);
+
     return (
         <div className="space-y-5">
             {/* Toolbar */}
             <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                 <div className="relative flex-1 max-w-md">
                     <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-lg" style={{ color: '#475569' }}>search</span>
-                    <input
-                        data-testid="bgp-peer-search"
-                        value={search}
-                        onChange={e => setSearch(e.target.value)}
-                        placeholder="Search peer IP, ASN, name…"
-                        className="form-input"
-                        style={{ paddingLeft: '2.4rem' }}
-                    />
+                    <input data-testid="bgp-peer-search" value={search} onChange={e => setSearch(e.target.value)}
+                        placeholder="Search peer IP, ASN, name…" className="form-input" style={{ paddingLeft: '2.4rem' }} />
                 </div>
-                <select
-                    data-testid="bgp-peer-af-filter"
-                    value={afFilter}
-                    onChange={e => setAfFilter(e.target.value)}
-                    className="form-select"
-                    style={{ maxWidth: '12rem' }}
-                >
+                <select data-testid="bgp-peer-af-filter" value={afFilter} onChange={e => setAfFilter(e.target.value)}
+                    className="form-select" style={{ maxWidth: '11rem' }}>
                     <option value="all">All Address Families</option>
                     {AF_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
+
+                {isSuperAdmin && (
+                    <select data-testid="bgp-tenant-switcher" value={activeTenant || 'all'} onChange={e => handleTenantChange(e.target.value)}
+                        className="form-select" style={{ maxWidth: '13rem' }} disabled={isPending}>
+                        <option value="all">All Organizations</option>
+                        {tenants.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                    </select>
+                )}
+
                 <div className="flex-1" />
                 {canManage && (
-                    <button data-testid="add-bgp-peer-btn" onClick={openAdd} className="btn-primary">
+                    <button data-testid="add-bgp-peer-btn" onClick={openAdd} disabled={!canAdd} className="btn-primary"
+                        title={!canAdd ? 'Select an organization first' : 'Add a BGP peer'}>
                         <span className="material-symbols-outlined text-base">add</span>
                         Add BGP Peer
                     </button>
                 )}
             </div>
+
+            {isSuperAdmin && !activeTenant && (
+                <div className="text-xs px-4 py-2 rounded-lg" data-testid="tenant-hint"
+                    style={{ backgroundColor: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.2)', color: '#fbbf24' }}>
+                    Viewing peers across all organizations. Select a specific organization above to add new peers.
+                </div>
+            )}
 
             {/* Table */}
             <div className="card overflow-hidden">
@@ -165,30 +237,37 @@ export default function BgpPeerManager({
                     <table className="w-full data-table" data-testid="bgp-peers-table">
                         <thead>
                             <tr>
+                                {showTenantCol && <th>Organization</th>}
                                 <th>Neighbor / Peer</th>
                                 <th>Remote AS</th>
                                 <th>Address Family</th>
-                                <th>Prefix Limit</th>
                                 <th>Route Policy (in / out)</th>
-                                <th>Status</th>
+                                <th>Config Status</th>
+                                <th>Live Match</th>
                                 <th style={{ textAlign: 'right' }}>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             {filtered.length === 0 ? (
                                 <tr>
-                                    <td colSpan={7} style={{ textAlign: 'center', padding: '3.5rem' }}>
+                                    <td colSpan={colSpan} style={{ textAlign: 'center', padding: '3.5rem' }}>
                                         <span className="material-symbols-outlined text-4xl block mb-3" style={{ color: '#334155' }}>lan</span>
                                         <p className="font-medium text-white mb-1">No BGP peers configured</p>
                                         <p className="text-xs" style={{ color: '#475569' }}>
-                                            {canManage ? 'Click “Add BGP Peer” to define your first neighbor.' : 'Ask an administrator to configure BGP peers.'}
+                                            {canAdd ? 'Click “Add BGP Peer” to define your first neighbor.' : 'Nothing to show for this scope.'}
                                         </p>
                                     </td>
                                 </tr>
                             ) : filtered.map(p => {
                                 const st = STATUS_META[p.adminStatus] || STATUS_META.enabled;
+                                const live = liveMap[p.peerIp];
+                                const liveUp = live?.bgpState === 'Established';
+                                const drift = p.adminStatus === 'enabled' && live && !liveUp;
                                 return (
                                     <tr key={p.id} data-testid={`bgp-peer-row-${p.id}`}>
+                                        {showTenantCol && (
+                                            <td><span className="text-xs" style={{ color: '#a5b4c8' }}>{p.tenantName || '—'}</span></td>
+                                        )}
                                         <td>
                                             <div className="flex flex-col gap-0.5">
                                                 <span className="font-bold text-white text-sm font-mono">{p.peerIp}</span>
@@ -199,34 +278,54 @@ export default function BgpPeerManager({
                                         <td><span className="chip">AS{p.remoteAsn}</span></td>
                                         <td><span className="text-xs" style={{ color: '#a5b4c8' }}>{AF_LABEL[p.addressFamily] || p.addressFamily}</span></td>
                                         <td>
-                                            <span className="font-mono text-xs" style={{ color: p.prefixLimit ? '#e6edf6' : '#475569' }}>
-                                                {p.prefixLimit ? p.prefixLimit.toLocaleString() : '—'}
-                                            </span>
-                                        </td>
-                                        <td>
                                             <div className="flex flex-col gap-1 text-[11px] font-mono">
                                                 <span style={{ color: p.routePolicyIn ? '#34d399' : '#475569' }}>↓ {p.routePolicyIn || '—'}</span>
                                                 <span style={{ color: p.routePolicyOut ? '#22d3ee' : '#475569' }}>↑ {p.routePolicyOut || '—'}</span>
                                             </div>
                                         </td>
                                         <td>
-                                            <span className={st.cls}><span className="dot" style={{ backgroundColor: st.color }} />{st.label}</span>
+                                            <div className="flex flex-col gap-1">
+                                                <span className={st.cls}><span className="dot" style={{ backgroundColor: st.color }} />{st.label}</span>
+                                                {p.lastPushStatus && (
+                                                    <span className="text-[10px] font-mono flex items-center gap-1"
+                                                        style={{ color: p.lastPushStatus === 'success' ? '#34d399' : '#fb7185' }}
+                                                        data-testid={`push-status-${p.id}`}>
+                                                        <span className="material-symbols-outlined text-[13px]">{p.lastPushStatus === 'success' ? 'cloud_done' : 'cloud_off'}</span>
+                                                        {p.lastPushStatus === 'success' ? 'Pushed' : 'Push failed'}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td data-testid={`live-match-${p.id}`}>
+                                            {!live ? (
+                                                <span className="badge-neutral"><span className="dot" style={{ backgroundColor: '#64748b' }} />Not monitored</span>
+                                            ) : liveUp ? (
+                                                <div className="flex flex-col gap-0.5">
+                                                    <span className="badge-established"><span className="dot" style={{ backgroundColor: '#34d399' }} />Established</span>
+                                                    <span className="text-[10px] font-mono" style={{ color: '#64748b' }}>{live.acceptedPrefixes.toLocaleString()} pfx · {live.deviceName}</span>
+                                                </div>
+                                            ) : (
+                                                <div className="flex flex-col gap-0.5">
+                                                    <span className="badge-down"><span className="dot" style={{ backgroundColor: '#fb7185' }} />{live.bgpState || 'Down'}</span>
+                                                    {drift && <span className="text-[10px]" style={{ color: '#fbbf24' }}>⚠ config drift</span>}
+                                                </div>
+                                            )}
                                         </td>
                                         <td style={{ textAlign: 'right' }}>
                                             <div className="flex items-center justify-end gap-2">
                                                 {canManage && (
                                                     <>
-                                                        <button
-                                                            data-testid={`toggle-bgp-peer-${p.id}`}
-                                                            onClick={() => handleToggle(p)}
-                                                            className="btn-ghost text-xs"
-                                                            title={p.adminStatus === 'enabled' ? 'Disable peer' : 'Enable peer'}
-                                                        >
+                                                        <button data-testid={`push-bgp-peer-${p.id}`} onClick={() => openPush(p)} className="btn-ghost text-xs"
+                                                            title="Preview & push config to router">
+                                                            <span className="material-symbols-outlined text-sm">cloud_upload</span>
+                                                            Push
+                                                        </button>
+                                                        <button data-testid={`toggle-bgp-peer-${p.id}`} onClick={() => handleToggle(p)} className="btn-ghost text-xs"
+                                                            title={p.adminStatus === 'enabled' ? 'Disable peer' : 'Enable peer'}>
                                                             <span className="material-symbols-outlined text-sm">{p.adminStatus === 'enabled' ? 'toggle_on' : 'toggle_off'}</span>
                                                         </button>
                                                         <button data-testid={`edit-bgp-peer-${p.id}`} onClick={() => openEdit(p)} className="btn-ghost text-xs">
                                                             <span className="material-symbols-outlined text-sm">edit</span>
-                                                            Edit
                                                         </button>
                                                         <button data-testid={`delete-bgp-peer-${p.id}`} onClick={() => setConfirmDelete(p)} className="btn-danger">
                                                             <span className="material-symbols-outlined text-sm">delete</span>
@@ -263,6 +362,7 @@ export default function BgpPeerManager({
 
                         <form onSubmit={handleSubmit} className="p-6 space-y-5" data-testid="bgp-peer-form">
                             {editing && <input type="hidden" name="id" value={editing.id} />}
+                            {isSuperAdmin && activeTenant && <input type="hidden" name="tenantId" value={activeTenant} />}
 
                             {formError && (
                                 <div className="p-3 rounded-lg text-sm font-medium" data-testid="bgp-peer-form-error"
@@ -345,6 +445,77 @@ export default function BgpPeerManager({
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Push to Router Modal */}
+            {pushPeer && (
+                <div className="modal-backdrop" onClick={() => !pushApplying && setPushPeer(null)}>
+                    <div className="modal-panel" style={{ maxWidth: '48rem' }} onClick={e => e.stopPropagation()} data-testid="push-modal">
+                        <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderColor: 'var(--color-border)' }}>
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 rounded-lg" style={{ backgroundColor: 'rgba(34,211,238,0.12)', color: '#22d3ee' }}>
+                                    <span className="material-symbols-outlined">cloud_upload</span>
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-white text-lg">Push to Router</h3>
+                                    <p className="text-xs mt-0.5" style={{ color: '#64748b' }}>
+                                        Peer <span className="font-mono text-white">{pushPeer.peerIp}</span> · AS{pushPeer.remoteAsn}
+                                        {pushData?.device ? <> · {pushData.device.hostname} ({pushData.vendor})</> : <> · no device attached</>}
+                                    </p>
+                                </div>
+                            </div>
+                            <button onClick={() => setPushPeer(null)} className="btn-ghost p-1.5" aria-label="Close">
+                                <span className="material-symbols-outlined">close</span>
+                            </button>
+                        </div>
+
+                        <div className="p-6 space-y-4">
+                            {pushLoading && (
+                                <div className="flex flex-col items-center justify-center py-10 gap-3">
+                                    <span className="material-symbols-outlined animate-spin text-2xl" style={{ color: '#22d3ee' }}>progress_activity</span>
+                                    <p className="text-sm" style={{ color: '#94a3b8' }}>Generating vendor config…</p>
+                                </div>
+                            )}
+
+                            {pushData && (
+                                <div>
+                                    <p className="form-label">Generated {pushData.vendor.toUpperCase()} configuration</p>
+                                    <pre data-testid="push-config-preview" style={{
+                                        backgroundColor: 'rgba(0,0,0,0.55)', color: '#a5f3fc', fontFamily: 'ui-monospace, monospace',
+                                        fontSize: '0.75rem', lineHeight: 1.6, padding: '1rem', borderRadius: '0.7rem',
+                                        overflowX: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                                        border: '1px solid var(--color-border)', maxHeight: '18rem',
+                                    }}>{pushData.config}</pre>
+                                    {!pushData.device && (
+                                        <p className="text-xs mt-2" style={{ color: '#fbbf24' }}>
+                                            ⚠ No device attached. Edit the peer and pick an “Attached Device” to enable live SSH push.
+                                        </p>
+                                    )}
+                                </div>
+                            )}
+
+                            {pushResult && (
+                                <div className="rounded-lg p-4" data-testid="push-result"
+                                    style={{ backgroundColor: pushResult.ok ? 'rgba(52,211,153,0.08)' : 'rgba(251,113,133,0.08)', border: `1px solid ${pushResult.ok ? 'rgba(52,211,153,0.25)' : 'rgba(251,113,133,0.25)'}` }}>
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <span className="material-symbols-outlined text-lg" style={{ color: pushResult.ok ? '#34d399' : '#fb7185' }}>{pushResult.ok ? 'check_circle' : 'error'}</span>
+                                        <p className="font-bold" style={{ color: pushResult.ok ? '#34d399' : '#fb7185' }}>{pushResult.ok ? 'Applied to router' : 'Push failed'}</p>
+                                    </div>
+                                    <pre style={{ color: '#94a3b8', fontFamily: 'monospace', fontSize: '0.72rem', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: '12rem', overflowY: 'auto' }}>{pushResult.text}</pre>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t" style={{ borderColor: 'var(--color-border)' }}>
+                            <button onClick={() => setPushPeer(null)} className="btn-ghost">Close</button>
+                            <button data-testid="apply-push-btn" onClick={applyPush} disabled={pushApplying || pushLoading || !pushData?.device} className="btn-primary"
+                                title={!pushData?.device ? 'Attach a device to enable push' : 'Push config over SSH'}>
+                                <span className="material-symbols-outlined text-base">{pushApplying ? 'progress_activity' : 'terminal'}</span>
+                                {pushApplying ? 'Pushing…' : 'Push via SSH'}
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

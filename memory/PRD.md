@@ -41,7 +41,11 @@ User choices:
 - Toggle enable/disable + Delete use same working action path.
 
 ## Backlog / Next
-- Push BGP peer config to real routers (SSH) — currently config-store only (design intent).
-- Per-tenant peer view for superadmin (tenant switcher).
+- Per-vendor push validation against real hardware (currently supports cisco/arista/huawei/juniper/mikrotik/vyos/danos generation).
 - Import/export BGP peers (CSV).
 - Wire background worker for live device polling (needs real devices/SNMP).
+
+## Implemented — Iteration 2 (2026-06)
+- **Push To Router**: `src/lib/bgp-config-generator.ts` generates vendor CLI (cisco/arista/huawei/juniper/mikrotik/vyos/danos). API `POST /api/bgp-peers/push` — `dryRun:true` returns config preview; `dryRun:false` applies over SSH (conn.shell, vendor config-mode wrap) and records `lastPushStatus`/`lastPushedAt`/`lastPushLog` on the peer. UI: per-row "Push" button → modal with config preview + "Push via SSH" (disabled when no device attached). Verified: preview generates correctly; SSH apply gated on attached device.
+- **Live Peer Match**: page reads live BGP sessions from Redis (tenant-scoped pattern) into a map keyed by peerIp; new "Live Match" table column (Established w/ prefixes+device / Down / Not monitored) + "config drift" hint; "Live Established" stat card. Verified.
+- **Tenant Peer View (superadmin)**: tenant switcher (`?tenant=`) scopes list + create; "Organization" column shown when viewing all; Add disabled with hint until a specific org is selected; server actions let superadmin target any tenant (`resolveTenant`/`scopeWhere`). Verified: switch → scope + tenant-scoped create works.

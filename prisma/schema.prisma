@@ -50,6 +50,9 @@ model BgpPeer {
   password        String?                          // MD5 / TCP-AO auth key
   description     String?
   adminStatus     String   @default("enabled")     // enabled | disabled | shutdown
+  lastPushedAt    DateTime? @map("last_pushed_at")
+  lastPushStatus  String?  @map("last_push_status") // success | failed
+  lastPushLog     String?  @map("last_push_log")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 

@@ -22,17 +22,17 @@ function parseForm(formData: FormData) {
     const description = (formData.get('description') as string || '').trim() || null;
     const adminStatus = (formData.get('adminStatus') as string || 'enabled').trim();
     const deviceIdRaw = (formData.get('deviceId') as string || '').trim();
+    const tenantIdRaw = (formData.get('tenantId') as string || '').trim();
 
     return {
         peerIp, peerName, remoteAsnRaw, localAsnRaw, addressFamily,
         prefixLimitRaw, prefixList, routePolicyIn, routePolicyOut,
-        password, description, adminStatus, deviceIdRaw,
+        password, description, adminStatus, deviceIdRaw, tenantIdRaw,
     };
 }
 
 function validate(p: ReturnType<typeof parseForm>): string | null {
     if (!p.peerIp) return 'Peer / Neighbor IP is required.';
-    // Basic IPv4/IPv6 sanity check
     const ipv4 = /^(\d{1,3}\.){3}\d{1,3}$/;
     const ipv6 = /^[0-9a-fA-F:]+$/;
     if (!ipv4.test(p.peerIp) && !ipv6.test(p.peerIp)) return 'Peer IP is not a valid IPv4 or IPv6 address.';
@@ -43,6 +43,17 @@ function validate(p: ReturnType<typeof parseForm>): string | null {
     return null;
 }
 
+/** Resolve the tenant a write should target (superadmin may target any tenant). */
+function resolveTenant(session: any, tenantIdRaw: string): string {
+    if (session.role === 'superadmin' && tenantIdRaw) return tenantIdRaw;
+    return session.tenantId;
+}
+
+/** Where-clause for updates/deletes: superadmin unrestricted, others tenant-scoped. */
+function scopeWhere(session: any, id: number) {
+    return session.role === 'superadmin' ? { id } : { id, tenantId: session.tenantId };
+}
+
 export async function createBgpPeer(formData: FormData): Promise<Result> {
     const session = await requireSession();
     if (!MANAGE_ROLES.includes(session.role)) return { success: false, error: 'Permission denied.' };
@@ -51,10 +62,15 @@ export async function createBgpPeer(formData: FormData): Promise<Result> {
     const err = validate(p);
     if (err) return { success: false, error: err };
 
+    const tenantId = resolveTenant(session, p.tenantIdRaw);
+    if (session.role === 'superadmin' && !p.tenantIdRaw) {
+        return { success: false, error: 'Select an organization before adding a peer.' };
+    }
+
     try {
         await (prisma as any).bgpPeer.create({
             data: {
-                tenantId: session.tenantId,
+                tenantId,
                 peerIp: p.peerIp,
                 peerName: p.peerName,
                 remoteAsn: BigInt(p.remoteAsnRaw),
@@ -91,7 +107,7 @@ export async function updateBgpPeer(formData: FormData): Promise<Result> {
 
     try {
         const result = await (prisma as any).bgpPeer.updateMany({
-            where: { id, tenantId: session.tenantId },
+            where: scopeWhere(session, id),
             data: {
                 peerIp: p.peerIp,
                 peerName: p.peerName,
@@ -121,7 +137,7 @@ export async function deleteBgpPeer(id: number): Promise<Result> {
     const session = await requireSession();
     if (!MANAGE_ROLES.includes(session.role)) return { success: false, error: 'Permission denied.' };
     try {
-        await (prisma as any).bgpPeer.deleteMany({ where: { id, tenantId: session.tenantId } });
+        await (prisma as any).bgpPeer.deleteMany({ where: scopeWhere(session, id) });
         revalidatePath('/bgp-peers');
         return { success: true };
     } catch (e: any) {
@@ -134,7 +150,7 @@ export async function toggleBgpPeerStatus(id: number, nextStatus: string): Promi
     if (!MANAGE_ROLES.includes(session.role)) return { success: false, error: 'Permission denied.' };
     try {
         await (prisma as any).bgpPeer.updateMany({
-            where: { id, tenantId: session.tenantId },
+            where: scopeWhere(session, id),
             data: { adminStatus: nextStatus },
         });
         revalidatePath('/bgp-peers');
