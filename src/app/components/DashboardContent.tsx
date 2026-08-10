@@ -140,9 +140,9 @@ export default async function DashboardContent({ session, searchParams }: Props)
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
 
         {/* Total Sessions */}
-        <div className="card p-5" role="region" aria-label="Total BGP sessions">
+        <div className="stat-card p-5 animate-rise d1" style={{ '--accent': '#22d3ee' } as any} role="region" aria-label="Total BGP sessions">
           <div className="flex items-start justify-between mb-4">
-            <div className="p-2 rounded-lg" style={{ backgroundColor: 'rgba(19,164,236,0.12)', color: '#13a4ec' }}>
+            <div className="p-2 rounded-lg" style={{ backgroundColor: 'rgba(34,211,238,0.12)', color: '#22d3ee' }}>
               <span className="material-symbols-outlined text-xl" aria-hidden="true">cable</span>
             </div>
             <span className="text-[10px] font-bold px-2 py-0.5 rounded"
@@ -155,21 +155,21 @@ export default async function DashboardContent({ session, searchParams }: Props)
         {/* Established */}
         <Link
           href={hrefEstablished}
-          className="card p-5 block transition-all hover:border-[#10b981]/40 focus-ring"
-          style={{ borderColor: status === 'Established' ? 'rgba(16,185,129,0.4)' : undefined }}
+          className="stat-card p-5 block animate-rise d2"
+          style={{ '--accent': '#34d399', borderColor: status === 'Established' ? 'rgba(52,211,153,0.4)' : undefined } as any}
           aria-label={`${upSessions} established sessions — click to filter`}
           aria-pressed={status === 'Established'}
         >
           <div className="flex items-start justify-between mb-4">
-            <div className="p-2 rounded-lg" style={{ backgroundColor: 'rgba(16,185,129,0.12)', color: '#10b981' }}>
+            <div className="p-2 rounded-lg" style={{ backgroundColor: 'rgba(52,211,153,0.12)', color: '#34d399' }}>
               <span className="material-symbols-outlined text-xl" aria-hidden="true">check_circle</span>
             </div>
             <span className="text-[10px] font-bold px-2 py-0.5 rounded"
-              style={{ backgroundColor: 'rgba(16,185,129,0.15)', color: '#10b981' }}>ACTIVE</span>
+              style={{ backgroundColor: 'rgba(52,211,153,0.15)', color: '#34d399' }}>ACTIVE</span>
           </div>
           <p className="text-sm mb-1" style={{ color: '#64748b' }}>Established</p>
           <p className="text-3xl font-bold text-white">{upSessions}</p>
-          <p className="text-[10px] mt-2 flex items-center gap-1" style={{ color: '#10b981' }}>
+          <p className="text-[10px] mt-2 flex items-center gap-1" style={{ color: '#34d399' }}>
             <span className="material-symbols-outlined text-sm" aria-hidden="true">filter_alt</span>
             Click to filter
           </p>
@@ -178,37 +178,37 @@ export default async function DashboardContent({ session, searchParams }: Props)
         {/* Sessions Down */}
         <Link
           href={hrefDown}
-          className="card p-5 block transition-all focus-ring"
-          style={{ borderColor: status === 'down' ? 'rgba(244,63,94,0.4)' : undefined }}
+          className="stat-card p-5 block animate-rise d3"
+          style={{ '--accent': '#fb7185', borderColor: status === 'down' ? 'rgba(251,113,133,0.4)' : undefined } as any}
           aria-label={`${downSessions} sessions down${downSessions > 0 ? ' — click to filter' : ''}`}
           aria-pressed={status === 'down'}
         >
           <div className="flex items-start justify-between mb-4">
-            <div className="p-2 rounded-lg" style={{ backgroundColor: 'rgba(244,63,94,0.12)', color: '#f43f5e' }}>
+            <div className="p-2 rounded-lg" style={{ backgroundColor: 'rgba(251,113,133,0.12)', color: '#fb7185' }}>
               <span className="material-symbols-outlined text-xl" aria-hidden="true">error</span>
             </div>
             {downSessions > 0 && (
               <span className="text-[10px] font-bold px-2 py-0.5 rounded animate-pulse"
-                style={{ backgroundColor: 'rgba(244,63,94,0.15)', color: '#f43f5e' }}
+                style={{ backgroundColor: 'rgba(251,113,133,0.15)', color: '#fb7185' }}
                 role="status" aria-live="polite">ALERT</span>
             )}
           </div>
           <p className="text-sm mb-1" style={{ color: '#64748b' }}>Sessions Down</p>
           <p className="text-3xl font-bold text-white">{downSessions}</p>
           {downSessions > 0 ? (
-            <p className="text-[10px] mt-2 flex items-center gap-1" style={{ color: '#f43f5e' }}>
+            <p className="text-[10px] mt-2 flex items-center gap-1" style={{ color: '#fb7185' }}>
               <span className="material-symbols-outlined text-sm" aria-hidden="true">filter_alt</span>
               Click to see affected peers
             </p>
           ) : (
-            <p className="text-[10px] mt-2" style={{ color: '#10b981' }}>All sessions healthy ✓</p>
+            <p className="text-[10px] mt-2" style={{ color: '#34d399' }}>All sessions healthy ✓</p>
           )}
         </Link>
 
         {/* Session Health */}
-        <div className="card p-5" role="region" aria-label={`Session health: ${uptimePct}%`}>
+        <div className="stat-card p-5 animate-rise d4" style={{ '--accent': '#6366f1' } as any} role="region" aria-label={`Session health: ${uptimePct}%`}>
           <div className="flex items-start justify-between mb-4">
-            <div className="p-2 rounded-lg" style={{ backgroundColor: 'rgba(19,164,236,0.12)', color: '#13a4ec' }}>
+            <div className="p-2 rounded-lg" style={{ backgroundColor: 'rgba(99,102,241,0.14)', color: '#818cf8' }}>
               <span className="material-symbols-outlined text-xl" aria-hidden="true">monitoring</span>
             </div>
             <span className="text-[10px] font-bold px-2 py-0.5 rounded"
@@ -229,7 +229,7 @@ export default async function DashboardContent({ session, searchParams }: Props)
               className="h-full rounded-full transition-all"
               style={{
                 width: `${uptimePct}%`,
-                backgroundColor: uptimePct >= 80 ? '#13a4ec' : uptimePct >= 60 ? '#f59e0b' : '#f43f5e',
+                backgroundColor: uptimePct >= 80 ? '#22d3ee' : uptimePct >= 60 ? '#fbbf24' : '#fb7185',
               }}
             />
           </div>

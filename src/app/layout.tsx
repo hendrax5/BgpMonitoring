@@ -70,7 +70,7 @@ export default async function RootLayout({
       </head>
       <body
         className={`${spaceGrotesk.variable} font-sans antialiased h-full flex`}
-        style={{ backgroundColor: '#101c22', color: '#f1f5f9' }}
+        style={{ backgroundColor: 'transparent', color: '#e6edf6' }}
       >
         <Sidebar
           isSuperAdmin={session?.role === 'superadmin'}

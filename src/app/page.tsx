@@ -39,8 +39,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
   return (
     <div className="min-h-screen">
       {/* Top Header */}
-      <header className="sticky top-0 z-40 flex items-center justify-between px-6 py-3 border-b"
-        style={{ backgroundColor: '#0d1520', borderColor: 'rgba(255,255,255,0.07)' }}>
+      <header className="sticky top-0 z-40 flex items-center justify-between px-6 py-3 border-b glass"
+        style={{ borderColor: 'var(--color-border)' }}>
         <div className="flex items-center gap-6 flex-wrap">
           <div>
             <h2 className="text-white font-bold text-base">BGP Overview Dashboard</h2>

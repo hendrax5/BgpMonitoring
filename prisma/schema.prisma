@@ -25,8 +25,38 @@ model Tenant {
   bgpLogs          BgpLog[]
   configBackups    DeviceConfigBackup[]
   settings         AppSettings[]
+  bgpPeers         BgpPeer[]
 
   @@map("tenants")
+}
+
+// ─── BGP Peer Configuration (per tenant, managed via UI CRUD) ─────────────────
+model BgpPeer {
+  id              Int      @id @default(autoincrement())
+  tenantId        String   @map("tenant_id")
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  deviceId        Int?     @map("device_id")
+  routerDevice    RouterDevice? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+
+  peerName        String?  @map("peer_name")       // Human-readable description / neighbor name
+  peerIp          String   @map("peer_ip")         // Neighbor / peer IP address
+  remoteAsn       BigInt   @map("remote_asn")      // Remote AS number
+  localAsn        BigInt?  @map("local_asn")       // Local AS number
+  addressFamily   String   @default("ipv4-unicast") @map("address_family") // ipv4-unicast | ipv6-unicast | vpnv4 | l2vpn
+  prefixLimit     Int?     @map("prefix_limit")    // Max prefix limit
+  prefixList      String?  @map("prefix_list")     // Announced prefixes (comma/newline separated)
+  routePolicyIn   String?  @map("route_policy_in") // Inbound route-map / policy name
+  routePolicyOut  String?  @map("route_policy_out")// Outbound route-map / policy name
+  password        String?                          // MD5 / TCP-AO auth key
+  description     String?
+  adminStatus     String   @default("enabled")     // enabled | disabled | shutdown
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@unique([tenantId, peerIp, addressFamily])
+  @@index([tenantId])
+  @@index([deviceId])
+  @@map("bgp_peer")
 }
 
 // ─── User ─────────────────────────────────────────────────────────────────────
@@ -111,6 +141,7 @@ model RouterDevice {
   sshCredentialId Int?     @map("ssh_credential_id")
   sshCredential   DeviceCredential? @relation(fields: [sshCredentialId], references: [id], onDelete: SetNull)
   configBackups   DeviceConfigBackup[]
+  bgpPeers        BgpPeer[]
   isBgpMonitoring Boolean  @default(true) @map("is_bgp_monitoring")
   isConfigBackup  Boolean  @default(true) @map("is_config_backup")
   createdAt       DateTime @default(now()) @map("created_at")

@@ -6,6 +6,7 @@ import { Suspense } from 'react';
 
 const navItems = [
   { href: '/', label: 'Overview', icon: 'dashboard' },
+  { href: '/bgp-peers', label: 'BGP Peers', icon: 'lan' },
   { href: '/reports', label: 'BGP Event Log', icon: 'manage_history' },
   { href: '/config-management', label: 'Config Management', icon: 'settings_backup_restore' }
 ];
@@ -47,22 +48,21 @@ function SidebarInner({ isSuperAdmin, monitoringName, companyName }: SidebarProp
 
       <aside
         id="sidebar-panel"
-        className="sidebar-mobile w-56 flex-shrink-0 flex flex-col border-r"
+        className="sidebar-mobile w-56 flex-shrink-0 flex flex-col border-r glass"
         aria-label="Main navigation"
         style={{
-          backgroundColor: '#0d1520',
-          borderColor: 'rgba(255,255,255,0.07)',
+          borderColor: 'var(--color-border)',
           minHeight: '100vh',
         }}
       >
         {/* Logo + mobile close button */}
-        <div className="flex items-center gap-3 px-4 py-4 border-b" style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
-          <div className="flex items-center justify-center w-8 h-8 rounded-lg flex-shrink-0" style={{ backgroundColor: '#13a4ec' }}>
+        <div className="flex items-center gap-3 px-4 py-4 border-b" style={{ borderColor: 'var(--color-border)' }}>
+          <div className="flex items-center justify-center w-9 h-9 rounded-xl flex-shrink-0" style={{ background: 'linear-gradient(135deg, #22d3ee, #6366f1)', boxShadow: '0 4px 20px -6px rgba(34,211,238,0.6)' }}>
             <span className="material-symbols-outlined text-white text-lg">hub</span>
           </div>
           <div className="min-w-0 flex-1">
             <h1 className="font-bold text-xs text-white truncate">{displayCompany}</h1>
-            <p className="text-[10px] truncate" style={{ color: '#13a4ec' }}>{displayMonitoring}</p>
+            <p className="text-[10px] truncate" style={{ color: '#22d3ee' }}>{displayMonitoring}</p>
           </div>
           {/* Mobile close (×) button — only visible on small screens */}
           <button
