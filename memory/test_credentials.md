@@ -11,3 +11,8 @@
 Notes:
 - Auth is JWT (cookie `bgp_session`) via `/api/auth/login`.
 - Seeded by env `SUPERADMIN_USERNAME` / `SUPERADMIN_PASSWORD` in `/app/.env`.
+
+### In-pod lab router (test double for SSH push/diff)
+- Host: 127.0.0.1:2222 (supervisor program `labrouter`, `scripts/lab-router.js`)
+- SSH user/pass: `labadmin` / `labpass`
+- Seeded device `lab-router-01` (127.0.0.1, cisco) linked to the BGP peers; run `node scripts/seed-lab.js` to re-seed device + live Redis sessions.

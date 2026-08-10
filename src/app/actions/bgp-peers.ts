@@ -159,3 +159,18 @@ export async function toggleBgpPeerStatus(id: number, nextStatus: string): Promi
         return { success: false, error: e?.message || 'Failed to update status.' };
     }
 }
+
+export async function attachDeviceToPeer(id: number, deviceId: number | null): Promise<Result> {
+    const session = await requireSession();
+    if (!MANAGE_ROLES.includes(session.role)) return { success: false, error: 'Permission denied.' };
+    try {
+        await (prisma as any).bgpPeer.updateMany({
+            where: scopeWhere(session, id),
+            data: { deviceId: deviceId ?? null },
+        });
+        revalidatePath('/bgp-peers');
+        return { success: true };
+    } catch (e: any) {
+        return { success: false, error: e?.message || 'Failed to attach device.' };
+    }
+}

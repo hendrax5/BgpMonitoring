@@ -40,10 +40,24 @@ User choices:
 - BGP Peer Create ✓, Read/list ✓, Update/Edit ✓ (verified via browser automation).
 - Toggle enable/disable + Delete use same working action path.
 
+## Implemented — Iteration 3 (2026-06)
+- **Attach Device + real end-to-end SSH push**: peers link to a `RouterDevice` (with SSH credential); Push modal "Push via SSH" connects over SSH (ssh2 shell), runs vendor config-mode commands, captures output, and records `lastPushStatus`/`lastPushLog` (row shows a "Pushed" badge). Devices can be attached directly from the Push modal (`attachDeviceToPeer`). Verified end-to-end against an in-pod fake router.
+- **Config Diff**: Push modal "Diff vs Router" tab fetches the device's running BGP config over SSH (vendor show command) and renders a diff (react-diff-viewer-continued) vs the generated config.
+- **Auto Drift Alerts**: page flags peers that are `enabled` but whose live session is not `Established` — red dismissible banner listing drifted peers, a "Config Drift" stat card, and a per-row "⚠ config drift" hint.
+- Test harness: `scripts/lab-router.js` (ssh2 fake router @127.0.0.1:2222, supervisor `labrouter`) + `scripts/seed-lab.js` seed a device linked to peers and live Redis sessions so Push/Diff/Drift/Live-Match are demonstrable. Lab creds: labadmin/labpass.
+
+## Verified — Iteration 3
+- Testing agent: 18/18 frontend checks PASS; `/api/bgp-peers/push` preview+diff+apply all 200 OK via real SSH. CRUD regression + dashboard OK.
+
+## Known non-blocking notes
+- Pre-existing SSR hydration mismatch on dashboard "Since:" timestamp (dev console only).
+- Dev-only webpack-hmr WebSocket 502 through ingress (harmless).
+
 ## Backlog / Next
-- Per-vendor push validation against real hardware (currently supports cisco/arista/huawei/juniper/mikrotik/vyos/danos generation).
+- Surface `lastPushLog` via tooltip on "Push failed" badge.
+- Per-vendor push validation against real hardware.
 - Import/export BGP peers (CSV).
-- Wire background worker for live device polling (needs real devices/SNMP).
+- Optional: split BgpPeerManager modals into sub-components (~690 lines).
 
 ## Implemented — Iteration 2 (2026-06)
 - **Push To Router**: `src/lib/bgp-config-generator.ts` generates vendor CLI (cisco/arista/huawei/juniper/mikrotik/vyos/danos). API `POST /api/bgp-peers/push` — `dryRun:true` returns config preview; `dryRun:false` applies over SSH (conn.shell, vendor config-mode wrap) and records `lastPushStatus`/`lastPushedAt`/`lastPushLog` on the peer. UI: per-row "Push" button → modal with config preview + "Push via SSH" (disabled when no device attached). Verified: preview generates correctly; SSH apply gated on attached device.

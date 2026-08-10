@@ -2,7 +2,8 @@
 
 import { useState, useMemo, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { createBgpPeer, updateBgpPeer, deleteBgpPeer, toggleBgpPeerStatus } from '@/app/actions/bgp-peers';
+import ReactDiffViewer from 'react-diff-viewer-continued';
+import { createBgpPeer, updateBgpPeer, deleteBgpPeer, toggleBgpPeerStatus, attachDeviceToPeer } from '@/app/actions/bgp-peers';
 
 export interface BgpPeer {
     id: number;
@@ -34,6 +35,7 @@ export interface LiveMatch {
 
 interface DeviceOpt { id: number; hostname: string; ipAddress: string; vendor?: string; }
 interface TenantOpt { id: string; name: string; }
+interface DriftPeer { id: number; peerIp: string; remoteAsn: string; state: string; }
 
 const AF_OPTIONS = [
     { value: 'ipv4-unicast', label: 'IPv4 Unicast' },
@@ -51,7 +53,7 @@ const STATUS_META: Record<string, { label: string; cls: string; color: string }>
 };
 
 export default function BgpPeerManager({
-    peers, devices, canManage, liveMap, isSuperAdmin, tenants, activeTenant,
+    peers, devices, canManage, liveMap, isSuperAdmin, tenants, activeTenant, driftPeers,
 }: {
     peers: BgpPeer[];
     devices: DeviceOpt[];
@@ -60,6 +62,7 @@ export default function BgpPeerManager({
     isSuperAdmin: boolean;
     tenants: TenantOpt[];
     activeTenant: string | null;
+    driftPeers: DriftPeer[];
 }) {
     const router = useRouter();
     const [search, setSearch] = useState('');
@@ -70,6 +73,7 @@ export default function BgpPeerManager({
     const [formError, setFormError] = useState('');
     const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
     const [isPending, startTransition] = useTransition();
+    const [driftDismissed, setDriftDismissed] = useState(false);
 
     // Push modal state
     const [pushPeer, setPushPeer] = useState<BgpPeer | null>(null);
@@ -77,6 +81,10 @@ export default function BgpPeerManager({
     const [pushApplying, setPushApplying] = useState(false);
     const [pushData, setPushData] = useState<{ config: string; vendor: string; device: any } | null>(null);
     const [pushResult, setPushResult] = useState<{ ok: boolean; text: string } | null>(null);
+    const [pushTab, setPushTab] = useState<'config' | 'diff'>('config');
+    const [diffData, setDiffData] = useState<{ current: string; generated: string } | null>(null);
+    const [diffLoading, setDiffLoading] = useState(false);
+    const [attachSel, setAttachSel] = useState<string>('');
 
     const showTenantCol = isSuperAdmin && !activeTenant;
     const canAdd = canManage && (!isSuperAdmin || !!activeTenant);
@@ -147,12 +155,15 @@ export default function BgpPeerManager({
         setPushPeer(p);
         setPushData(null);
         setPushResult(null);
+        setPushTab('config');
+        setDiffData(null);
+        setAttachSel('');
         setPushLoading(true);
         try {
             const res = await fetch('/api/bgp-peers/push', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: p.id, dryRun: true }),
+                body: JSON.stringify({ id: p.id, mode: 'preview' }),
             });
             const data = await res.json();
             if (res.ok) setPushData({ config: data.config, vendor: data.vendor, device: data.device });
@@ -163,6 +174,41 @@ export default function BgpPeerManager({
         setPushLoading(false);
     }
 
+    async function loadDiff() {
+        if (!pushPeer || !pushData?.device) return;
+        setPushTab('diff');
+        if (diffData) return;
+        setDiffLoading(true);
+        try {
+            const res = await fetch('/api/bgp-peers/push', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: pushPeer.id, mode: 'diff' }),
+            });
+            const data = await res.json();
+            if (res.ok) setDiffData({ current: data.currentConfig || '', generated: data.config || '' });
+            else setPushResult({ ok: false, text: data.error || 'Failed to fetch current config.' });
+        } catch (e: any) {
+            setPushResult({ ok: false, text: e.message });
+        }
+        setDiffLoading(false);
+    }
+
+    async function handleAttach() {
+        if (!pushPeer || !attachSel) return;
+        startTransition(async () => {
+            const res = await attachDeviceToPeer(pushPeer.id, parseInt(attachSel, 10));
+            if (res.success) {
+                showToast('Device attached to peer.', true);
+                router.refresh();
+                // re-open preview with the newly attached device
+                openPush({ ...pushPeer, deviceId: parseInt(attachSel, 10) });
+            } else {
+                showToast(res.error || 'Attach failed.', false);
+            }
+        });
+    }
+
     async function applyPush() {
         if (!pushPeer) return;
         setPushApplying(true);
@@ -171,7 +217,7 @@ export default function BgpPeerManager({
             const res = await fetch('/api/bgp-peers/push', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: pushPeer.id, dryRun: false }),
+                body: JSON.stringify({ id: pushPeer.id, mode: 'apply' }),
             });
             const data = await res.json();
             if (res.ok) {
@@ -228,6 +274,33 @@ export default function BgpPeerManager({
                 <div className="text-xs px-4 py-2 rounded-lg" data-testid="tenant-hint"
                     style={{ backgroundColor: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.2)', color: '#fbbf24' }}>
                     Viewing peers across all organizations. Select a specific organization above to add new peers.
+                </div>
+            )}
+
+            {/* Config Drift Alerts */}
+            {driftPeers.length > 0 && !driftDismissed && (
+                <div className="rounded-xl p-4 animate-rise" data-testid="drift-alert-banner"
+                    style={{ backgroundColor: 'rgba(251,113,133,0.08)', border: '1px solid rgba(251,113,133,0.3)' }}>
+                    <div className="flex items-start gap-3">
+                        <span className="material-symbols-outlined alert-pulse" style={{ color: '#fb7185' }}>warning</span>
+                        <div className="flex-1 min-w-0">
+                            <p className="font-bold text-sm" style={{ color: '#fb7185' }}>
+                                Config Drift Detected — {driftPeers.length} peer{driftPeers.length !== 1 ? 's' : ''} enabled but not Established
+                            </p>
+                            <p className="text-xs mt-1" style={{ color: '#94a3b8' }}>
+                                {driftPeers.map(d => (
+                                    <span key={d.id} className="inline-flex items-center gap-1 mr-3">
+                                        <span className="font-mono text-white">{d.peerIp}</span>
+                                        <span className="chip" style={{ padding: '0 0.4rem' }}>AS{d.remoteAsn}</span>
+                                        <span style={{ color: '#fb7185' }}>{d.state}</span>
+                                    </span>
+                                ))}
+                            </p>
+                        </div>
+                        <button onClick={() => setDriftDismissed(true)} className="btn-ghost p-1" data-testid="dismiss-drift" aria-label="Dismiss">
+                            <span className="material-symbols-outlined text-base">close</span>
+                        </button>
+                    </div>
                 </div>
             )}
 
@@ -480,20 +553,75 @@ export default function BgpPeerManager({
                             )}
 
                             {pushData && (
-                                <div>
-                                    <p className="form-label">Generated {pushData.vendor.toUpperCase()} configuration</p>
-                                    <pre data-testid="push-config-preview" style={{
-                                        backgroundColor: 'rgba(0,0,0,0.55)', color: '#a5f3fc', fontFamily: 'ui-monospace, monospace',
-                                        fontSize: '0.75rem', lineHeight: 1.6, padding: '1rem', borderRadius: '0.7rem',
-                                        overflowX: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-                                        border: '1px solid var(--color-border)', maxHeight: '18rem',
-                                    }}>{pushData.config}</pre>
+                                <>
+                                    {/* Attach-device inline (when no device) */}
                                     {!pushData.device && (
-                                        <p className="text-xs mt-2" style={{ color: '#fbbf24' }}>
-                                            ⚠ No device attached. Edit the peer and pick an “Attached Device” to enable live SSH push.
-                                        </p>
+                                        <div className="rounded-lg p-4 flex flex-col sm:flex-row sm:items-end gap-3" data-testid="attach-device-panel"
+                                            style={{ backgroundColor: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.2)' }}>
+                                            <div className="flex-1">
+                                                <label className="form-label" style={{ color: '#fbbf24' }}>Attach a device to enable SSH push</label>
+                                                <select data-testid="attach-device-select" value={attachSel} onChange={e => setAttachSel(e.target.value)} className="form-select">
+                                                    <option value="">— Select device —</option>
+                                                    {devices.map(d => <option key={d.id} value={d.id}>{d.hostname} ({d.ipAddress}) · {d.vendor}</option>)}
+                                                </select>
+                                            </div>
+                                            <button data-testid="attach-device-btn" onClick={handleAttach} disabled={!attachSel || isPending} className="btn-primary">
+                                                <span className="material-symbols-outlined text-base">link</span>
+                                                Attach
+                                            </button>
+                                        </div>
                                     )}
-                                </div>
+
+                                    {/* Tabs */}
+                                    <div className="flex items-center gap-2">
+                                        <button data-testid="push-tab-config" onClick={() => setPushTab('config')} className="btn-ghost text-xs"
+                                            style={pushTab === 'config' ? { borderColor: '#22d3ee', color: '#22d3ee' } : {}}>
+                                            Generated Config
+                                        </button>
+                                        <button data-testid="push-tab-diff" onClick={loadDiff} disabled={!pushData.device} className="btn-ghost text-xs"
+                                            style={pushTab === 'diff' ? { borderColor: '#22d3ee', color: '#22d3ee' } : {}}
+                                            title={!pushData.device ? 'Attach a device to diff against the router' : 'Diff against running config'}>
+                                            Diff vs Router
+                                        </button>
+                                    </div>
+
+                                    {pushTab === 'config' && (
+                                        <div>
+                                            <p className="form-label">Generated {pushData.vendor.toUpperCase()} configuration</p>
+                                            <pre data-testid="push-config-preview" style={{
+                                                backgroundColor: 'rgba(0,0,0,0.55)', color: '#a5f3fc', fontFamily: 'ui-monospace, monospace',
+                                                fontSize: '0.75rem', lineHeight: 1.6, padding: '1rem', borderRadius: '0.7rem',
+                                                overflowX: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                                                border: '1px solid var(--color-border)', maxHeight: '18rem',
+                                            }}>{pushData.config}</pre>
+                                        </div>
+                                    )}
+
+                                    {pushTab === 'diff' && (
+                                        <div data-testid="push-diff-view">
+                                            {diffLoading ? (
+                                                <div className="flex items-center gap-2 py-8 justify-center" style={{ color: '#94a3b8' }}>
+                                                    <span className="material-symbols-outlined animate-spin">progress_activity</span>
+                                                    Fetching running config from router…
+                                                </div>
+                                            ) : diffData ? (
+                                                <div className="rounded-lg overflow-hidden text-xs" style={{ border: '1px solid var(--color-border)', maxHeight: '20rem', overflowY: 'auto' }}>
+                                                    <ReactDiffViewer
+                                                        oldValue={diffData.current || '(empty — peer not configured on router)'}
+                                                        newValue={diffData.generated}
+                                                        splitView={false}
+                                                        useDarkTheme
+                                                        hideLineNumbers
+                                                        leftTitle="On Router (current)"
+                                                        rightTitle="Generated (to push)"
+                                                    />
+                                                </div>
+                                            ) : (
+                                                <p className="text-xs py-6 text-center" style={{ color: '#64748b' }}>No diff loaded.</p>
+                                            )}
+                                        </div>
+                                    )}
+                                </>
                             )}
 
                             {pushResult && (

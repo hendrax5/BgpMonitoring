@@ -95,11 +95,16 @@ export default async function BgpPeersPage({ searchParams }: { searchParams: Pro
     const liveEstablished = peers.filter(p => liveMap[p.peerIp]?.bgpState === 'Established').length;
     const uniqueAsn = new Set(peers.map(p => p.remoteAsn)).size;
 
+    // Config drift: enabled peers whose live session exists but is NOT Established
+    const driftPeers = peers
+        .filter(p => p.adminStatus === 'enabled' && liveMap[p.peerIp] && liveMap[p.peerIp].bgpState !== 'Established')
+        .map(p => ({ id: p.id, peerIp: p.peerIp, remoteAsn: p.remoteAsn, state: liveMap[p.peerIp].bgpState || 'Down' }));
+
     const stats = [
         { label: 'Configured Peers', value: total, icon: 'lan', accent: '#22d3ee' },
         { label: 'Enabled', value: enabled, icon: 'check_circle', accent: '#34d399' },
         { label: 'Live Established', value: liveEstablished, icon: 'sensors', accent: '#818cf8' },
-        { label: 'Unique Remote AS', value: uniqueAsn, icon: 'hub', accent: '#fbbf24' },
+        { label: 'Config Drift', value: driftPeers.length, icon: 'warning', accent: driftPeers.length > 0 ? '#fb7185' : '#fbbf24' },
     ];
 
     return (
@@ -138,6 +143,7 @@ export default async function BgpPeersPage({ searchParams }: { searchParams: Pro
                     isSuperAdmin={isSuperAdmin}
                     tenants={tenants}
                     activeTenant={activeTenant}
+                    driftPeers={driftPeers}
                 />
             </main>
         </div>
