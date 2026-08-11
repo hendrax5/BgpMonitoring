@@ -145,27 +145,24 @@ export default async function TenantManagePage({ params }: { params: Promise<{ t
     return (
         <div className="min-h-screen">
             {/* Header */}
-            <header className="sticky top-0 z-40 flex items-center justify-between px-6 py-3 border-b"
-                style={{ backgroundColor: '#0d1520', borderColor: 'rgba(255,255,255,0.07)' }}>
+            <header className="sticky top-0 z-40 flex items-center justify-between px-6 py-3 border-b glass"
+                style={{ borderColor: 'var(--color-border)' }}>
                 <div>
                     <div className="flex items-center gap-2 text-xs mb-0.5">
-                        <Link href="/admin" style={{ color: '#f59e0b' }} className="font-bold uppercase tracking-wider hover:text-white">Admin</Link>
+                        <Link href="/admin" style={{ color: '#fbbf24' }} className="font-bold uppercase tracking-wider hover:text-white">Admin</Link>
                         <span style={{ color: '#475569' }}>/</span>
                         <span className="text-white">Kelola Tenant</span>
                     </div>
                     <div className="flex items-center gap-3">
                         <h2 className="text-white font-bold text-base">{tenant.name}</h2>
                         <span className="text-xs px-2 py-0.5 rounded font-bold"
-                            style={{ backgroundColor: 'rgba(19,164,236,0.12)', color: '#13a4ec' }}>
+                            style={{ backgroundColor: 'rgba(34,211,238,0.12)', color: '#22d3ee' }}>
                             {tenant.plan}
                         </span>
                         <span className="text-xs" style={{ color: '#475569' }}>{tenant.slug}</span>
                     </div>
                 </div>
-                <Link href="/admin" className="text-xs px-3 py-1.5 rounded-lg"
-                    style={{ color: '#64748b', border: '1px solid rgba(255,255,255,0.07)' }}>
-                    ← Back to Admin
-                </Link>
+                <Link href="/admin" className="btn-ghost text-xs">← Back to Admin</Link>
             </header>
 
             <main className="p-6 max-w-6xl mx-auto space-y-8">
@@ -173,7 +170,7 @@ export default async function TenantManagePage({ params }: { params: Promise<{ t
                 {/* ── Devices ────────────────────────────────────────────── */}
                 <section>
                     <div className="flex items-center gap-2 mb-4">
-                        <span className="material-symbols-outlined" style={{ color: '#13a4ec' }}>router</span>
+                        <span className="material-symbols-outlined" style={{ color: '#22d3ee' }}>router</span>
                         <h3 className="text-base font-bold text-white">Devices ({devices.length})</h3>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -211,8 +208,7 @@ export default async function TenantManagePage({ params }: { params: Promise<{ t
                                     <label className="block text-xs font-medium mb-1" style={{ color: '#64748b' }}>SNMP Community (optional)</label>
                                     <input type="text" name="snmpCommunity" placeholder="public" className="form-input w-full" />
                                 </div>
-                                <button type="submit" className="w-full py-2 rounded-lg text-sm font-bold text-white"
-                                    style={{ background: 'linear-gradient(135deg, #13a4ec, #0d47a1)' }}>
+                                <button type="submit" className="btn-primary w-full justify-center" style={{ padding: '0.6rem' }}>
                                     Add Device
                                 </button>
                             </form>
@@ -244,7 +240,7 @@ export default async function TenantManagePage({ params }: { params: Promise<{ t
                                             <td><span className="text-white capitalize">{d.vendor}</span></td>
                                             <td>
                                                 {d.sshCredential
-                                                    ? <span className="text-xs" style={{ color: '#10b981' }}>✓ {d.sshCredential.sshUser}</span>
+                                                    ? <span className="text-xs" style={{ color: '#34d399' }}>✓ {d.sshCredential.sshUser}</span>
                                                     : <span className="text-xs" style={{ color: '#475569' }}>—</span>
                                                 }
                                             </td>
@@ -252,8 +248,8 @@ export default async function TenantManagePage({ params }: { params: Promise<{ t
                                                 <form action={deleteTenantDevice}>
                                                     <input type="hidden" name="deviceId" value={d.id} />
                                                     <input type="hidden" name="tenantId" value={tenantId} />
-                                                    <button type="submit" className="text-xs px-2.5 py-1 rounded-lg"
-                                                        style={{ color: '#f43f5e', border: '1px solid rgba(244,63,94,0.3)' }}>
+                                                    <button type="submit" className="btn-danger"
+                                                        style={{ padding: '0.3rem 0.7rem' }}>
                                                         Hapus
                                                     </button>
                                                 </form>
@@ -269,7 +265,7 @@ export default async function TenantManagePage({ params }: { params: Promise<{ t
                 {/* ── Users ──────────────────────────────────────────────── */}
                 <section>
                     <div className="flex items-center gap-2 mb-4">
-                        <span className="material-symbols-outlined" style={{ color: '#13a4ec' }}>group</span>
+                        <span className="material-symbols-outlined" style={{ color: '#22d3ee' }}>group</span>
                         <h3 className="text-base font-bold text-white">Users ({users.length})</h3>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -294,8 +290,7 @@ export default async function TenantManagePage({ params }: { params: Promise<{ t
                                         <option value="viewer">Viewer — read only</option>
                                     </select>
                                 </div>
-                                <button type="submit" className="w-full py-2 rounded-lg text-sm font-bold text-white"
-                                    style={{ background: 'linear-gradient(135deg, #13a4ec, #0d47a1)' }}>
+                                <button type="submit" className="btn-primary w-full justify-center" style={{ padding: '0.6rem' }}>
                                     Add User
                                 </button>
                             </form>
@@ -328,11 +323,11 @@ export default async function TenantManagePage({ params }: { params: Promise<{ t
                                             </td>
                                             <td>
                                                 <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{
-                                                    backgroundColor: u.role === 'orgadmin' ? 'rgba(19,164,236,0.15)'
-                                                        : u.role === 'networkengineer' ? 'rgba(16,185,129,0.15)'
+                                                    backgroundColor: u.role === 'orgadmin' ? 'rgba(34,211,238,0.15)'
+                                                        : u.role === 'networkengineer' ? 'rgba(52,211,153,0.15)'
                                                             : 'rgba(255,255,255,0.06)',
-                                                    color: u.role === 'orgadmin' ? '#13a4ec'
-                                                        : u.role === 'networkengineer' ? '#10b981' : '#64748b',
+                                                    color: u.role === 'orgadmin' ? '#22d3ee'
+                                                        : u.role === 'networkengineer' ? '#34d399' : '#64748b',
                                                 }}>
                                                     {u.role === 'networkengineer' ? 'Net.Engineer' : u.role}
                                                 </span>
@@ -342,8 +337,8 @@ export default async function TenantManagePage({ params }: { params: Promise<{ t
                                                 <form action={deleteTenantUser}>
                                                     <input type="hidden" name="userId" value={u.id} />
                                                     <input type="hidden" name="tenantId" value={tenantId} />
-                                                    <button type="submit" className="text-xs px-2.5 py-1 rounded-lg"
-                                                        style={{ color: '#f43f5e', border: '1px solid rgba(244,63,94,0.3)' }}>
+                                                    <button type="submit" className="btn-danger"
+                                                        style={{ padding: '0.3rem 0.7rem' }}>
                                                         Hapus
                                                     </button>
                                                 </form>
@@ -359,7 +354,7 @@ export default async function TenantManagePage({ params }: { params: Promise<{ t
                 {/* ── Branding & Plan ─────────────────────────────────────── */}
                 <section>
                     <div className="flex items-center gap-2 mb-4">
-                        <span className="material-symbols-outlined" style={{ color: '#13a4ec' }}>palette</span>
+                        <span className="material-symbols-outlined" style={{ color: '#22d3ee' }}>palette</span>
                         <h3 className="text-base font-bold text-white">Branding & Plan</h3>
                     </div>
                     <div className="card p-6 max-w-xl">
@@ -393,8 +388,7 @@ export default async function TenantManagePage({ params }: { params: Promise<{ t
                                     placeholder="e.g. PT Mitra Net" className="form-input w-full" />
                             </div>
                             <div className="pt-2 border-t" style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
-                                <button type="submit" className="px-6 py-2.5 rounded-xl font-bold text-white"
-                                    style={{ background: 'linear-gradient(135deg, #13a4ec, #0d47a1)' }}>
+                                <button type="submit" className="btn-primary" style={{ padding: '0.6rem 1.4rem' }}>
                                     Simpan Perubahan
                                 </button>
                             </div>

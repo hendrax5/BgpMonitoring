@@ -14,16 +14,21 @@ const Toast = ({ message, type, onClose }: { message: string, type: 'success' | 
     }, [onClose]);
 
     const colors = {
-        success: 'bg-green-600',
-        error: 'bg-red-600',
-        info: 'bg-blue-600'
+        success: 'rgba(52,211,153,0.15)',
+        error: 'rgba(251,113,133,0.15)',
+        info: 'rgba(34,211,238,0.15)'
     };
+    const borders = {
+        success: 'rgba(52,211,153,0.35)',
+        error: 'rgba(251,113,133,0.35)',
+        info: 'rgba(34,211,238,0.35)'
+    };
+    const icons = { success: 'check_circle', error: 'error', info: 'info' };
 
     return (
-        <div className={`fixed bottom-6 right-6 ${colors[type]} text-white px-6 py-3 rounded-xl shadow-2xl flex items-center gap-3 animate-fade-in z-[300]`}>
-            {type === 'success' && <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>}
-            {type === 'error' && <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>}
-            {type === 'info' && <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+        <div className="fixed bottom-6 right-6 glass text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 animate-rise z-[300]"
+            style={{ backgroundColor: colors[type], border: `1px solid ${borders[type]}` }} data-testid="config-toast">
+            <span className="material-symbols-outlined text-lg">{icons[type]}</span>
             <div className="font-medium text-sm">{message}</div>
         </div>
     );
@@ -128,7 +133,7 @@ export default function ConfigDevices({ userRole }: { userRole: string }) {
 
     if (loading) {
         return <div className="flex justify-center items-center py-20">
-            <svg className="animate-spin h-8 w-8 text-blue-500" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+            <span className="material-symbols-outlined animate-spin text-2xl" style={{ color: '#22d3ee' }}>progress_activity</span>
         </div>;
     }
 
@@ -139,13 +144,15 @@ export default function ConfigDevices({ userRole }: { userRole: string }) {
             {/* Main Area: Fast UI Layout */}
             {userRole === 'superadmin' && tenants.length > 0 && (
                 <div className="mb-4 flex items-center justify-end gap-3 px-1 animate-fade-in">
-                    <label className="text-xs font-bold text-zinc-400">Filter by Tenant:</label>
-                    <select 
+                    <label className="text-xs font-bold" style={{ color: '#64748b' }}>Filter by Tenant:</label>
+                    <select
                         value={selectedTenant}
                         onChange={e => setSelectedTenant(e.target.value)}
-                        className="bg-[#0a1019] border border-white/10 rounded-xl px-4 py-2 text-xs font-bold text-white shadow-xl focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                        className="form-select"
+                        style={{ maxWidth: '15rem' }}
+                        data-testid="config-tenant-filter"
                     >
-                        <option value="all">🌐 All Organizations</option>
+                        <option value="all">All Organizations</option>
                         {tenants.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                     </select>
                 </div>
@@ -184,8 +191,8 @@ export default function ConfigDevices({ userRole }: { userRole: string }) {
                                     document.body.removeChild(textArea);
                                 }
                                 setToast({ message: 'Copied to clipboard', type: 'success' });
-                            }} className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-4 py-2 rounded text-sm transition-colors">Copy</button>
-                            <button onClick={() => setViewedConfig(null)} className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded text-sm transition-colors">Close</button>
+                            }} className="btn-ghost text-sm">Copy</button>
+                            <button onClick={() => setViewedConfig(null)} className="btn-primary text-sm">Close</button>
                         </div>
                     </div>
                     <pre className="p-6 text-sm text-green-400 font-mono overflow-auto flex-1 whitespace-pre-wrap">{viewedConfig}</pre>

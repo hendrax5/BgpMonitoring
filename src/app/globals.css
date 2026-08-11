@@ -273,6 +273,51 @@ body::after {
 .d3 { animation-delay: 0.19s; }
 .d4 { animation-delay: 0.26s; }
 
+/* Back-compat alias used by older pages */
+@media (prefers-reduced-motion: no-preference) {
+  .animate-fade-in-up { opacity: 0; animation: rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+}
+.scrollbar-hide { scrollbar-width: none; -ms-overflow-style: none; }
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+
+/* ─── SEGMENTED TABS ─── */
+.seg-tabs {
+  display: inline-flex;
+  gap: 0.25rem;
+  padding: 0.3rem;
+  border-radius: 0.85rem;
+  background: rgba(14, 24, 38, 0.6);
+  border: 1px solid var(--color-border);
+  backdrop-filter: blur(12px);
+}
+.seg-tab {
+  padding: 0.5rem 1.1rem;
+  border-radius: 0.6rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #94a3b8;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease;
+}
+.seg-tab:hover { color: #f1f5f9; background: rgba(255,255,255,0.04); }
+.seg-tab.active {
+  color: #041016;
+  background: linear-gradient(135deg, #22d3ee, #0891b2);
+  box-shadow: 0 6px 20px -8px rgba(34,211,238,0.6);
+}
+.seg-tab.active-indigo {
+  color: #fff;
+  background: linear-gradient(135deg, #6366f1, #4338ca);
+  box-shadow: 0 6px 20px -8px rgba(99,102,241,0.6);
+}
+
+/* Section heading with icon */
+.section-head { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 1rem; }
+.section-head .material-symbols-outlined { color: #22d3ee; }
+
 /* ─── INPUT / SELECT ─── */
 .form-select, .form-input, .form-textarea {
   background-color: rgba(148,163,184,0.05);

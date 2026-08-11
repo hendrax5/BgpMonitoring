@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache';
 import Link from 'next/link';
 import { DeleteTenantForm } from '@/app/admin/components/DeleteTenantForm';
 import SubmitButton from '@/app/components/SubmitButton';
+import UserProfileDropdown from '@/app/components/UserProfileDropdown';
 
 async function createTenant(formData: FormData) {
     'use server';
@@ -88,39 +89,39 @@ export default async function AdminPage() {
 
     return (
         <div className="min-h-screen">
-            <header className="sticky top-0 z-40 flex items-center justify-between px-6 py-3 border-b"
-                style={{ backgroundColor: '#0d1520', borderColor: 'rgba(255,255,255,0.07)' }}>
+            <header className="sticky top-0 z-40 flex items-center justify-between px-6 py-3 border-b glass"
+                style={{ borderColor: 'var(--color-border)' }}>
                 <div>
-                    <div className="flex items-center gap-2 text-xs mb-0.5" style={{ color: '#f59e0b' }}>
+                    <div className="flex items-center gap-2 text-xs mb-0.5" style={{ color: '#fbbf24' }}>
                         <span className="material-symbols-outlined text-base">admin_panel_settings</span>
                         <span className="font-bold uppercase tracking-wider">Superadmin</span>
                     </div>
                     <h2 className="text-white font-bold text-base">Platform Overview</h2>
                 </div>
-                <Link href="/" className="text-xs px-3 py-1.5 rounded-lg" style={{ color: '#64748b', border: '1px solid rgba(255,255,255,0.07)' }}>
-                    ← Dashboard
-                </Link>
+                <div className="flex items-center gap-3">
+                    <Link href="/" className="btn-ghost text-xs">← Dashboard</Link>
+                    <UserProfileDropdown username={session?.username} role={session?.role} />
+                </div>
             </header>
 
             <main className="p-6 space-y-6">
                 {/* Summary */}
-                <div className="grid grid-cols-3 gap-4">
-                    <div className="card p-5">
-                        <p className="text-xs mb-1" style={{ color: '#64748b' }}>Total Tenants</p>
-                        <p className="text-3xl font-bold text-white">{tenants.length}</p>
-                    </div>
-                    <div className="card p-5">
-                        <p className="text-xs mb-1" style={{ color: '#64748b' }}>Total Users</p>
-                        <p className="text-3xl font-bold text-white">
-                            {tenants.reduce((acc: number, t: any) => acc + t._count.users, 0)}
-                        </p>
-                    </div>
-                    <div className="card p-5">
-                        <p className="text-xs mb-1" style={{ color: '#64748b' }}>Total Devices</p>
-                        <p className="text-3xl font-bold text-white">
-                            {tenants.reduce((acc: number, t: any) => acc + t._count.devices, 0)}
-                        </p>
-                    </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {[
+                        { label: 'Total Tenants', value: tenants.length, icon: 'corporate_fare', accent: '#22d3ee' },
+                        { label: 'Total Users', value: tenants.reduce((acc: number, t: any) => acc + t._count.users, 0), icon: 'group', accent: '#818cf8' },
+                        { label: 'Total Devices', value: tenants.reduce((acc: number, t: any) => acc + t._count.devices, 0), icon: 'dns', accent: '#34d399' },
+                    ].map((s, i) => (
+                        <div key={s.label} className={`stat-card p-5 animate-rise d${i + 1}`} style={{ '--accent': s.accent } as any}>
+                            <div className="flex items-start justify-between mb-4">
+                                <div className="p-2 rounded-lg" style={{ backgroundColor: `${s.accent}1f`, color: s.accent }}>
+                                    <span className="material-symbols-outlined text-xl">{s.icon}</span>
+                                </div>
+                            </div>
+                            <p className="text-sm mb-1" style={{ color: '#64748b' }}>{s.label}</p>
+                            <p className="text-3xl font-bold text-white">{s.value}</p>
+                        </div>
+                    ))}
                 </div>
 
                 {/* Create Tenant */}
@@ -160,8 +161,8 @@ export default async function AdminPage() {
                         </div>
                         <div className="col-span-2 pt-2 border-t" style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
                             <SubmitButton pendingText="Creating..."
-                                className="px-6 py-2.5 rounded-xl font-bold text-white"
-                                style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}>
+                                className="btn-primary"
+                                style={{ background: 'linear-gradient(135deg, #34d399, #059669)', color: '#04140c', padding: '0.6rem 1.4rem' }}>
                                 <span className="material-symbols-outlined text-sm align-middle mr-1">add_circle</span>
                                 Create Tenant
                             </SubmitButton>
@@ -201,7 +202,7 @@ export default async function AdminPage() {
                                             </td>
                                             <td>
                                                 <span className="text-xs font-bold px-2 py-0.5 rounded"
-                                                    style={{ backgroundColor: 'rgba(19,164,236,0.12)', color: '#13a4ec' }}>
+                                                    style={{ backgroundColor: 'rgba(34,211,238,0.12)', color: '#22d3ee' }}>
                                                     {t.plan}
                                                 </span>
                                             </td>
@@ -210,9 +211,9 @@ export default async function AdminPage() {
                                             <td><span className="font-bold text-white">{counts.total}</span></td>
                                             <td>
                                                 {counts.down > 0 ? (
-                                                    <span className="font-bold" style={{ color: '#f43f5e' }}>{counts.down}</span>
+                                                    <span className="font-bold" style={{ color: '#fb7185' }}>{counts.down}</span>
                                                 ) : (
-                                                    <span style={{ color: '#10b981' }}>0</span>
+                                                    <span style={{ color: '#34d399' }}>0</span>
                                                 )}
                                             </td>
                                             <td>
@@ -224,7 +225,7 @@ export default async function AdminPage() {
                                                 <div className="flex items-center gap-2">
                                                     <Link href={`/admin/tenants/${t.id}`}
                                                         className="text-xs px-2.5 py-1 rounded-lg font-medium"
-                                                        style={{ color: '#13a4ec', border: '1px solid rgba(19,164,236,0.3)' }}>
+                                                        style={{ color: '#22d3ee', border: '1px solid rgba(34,211,238,0.3)' }}>
                                                         Kelola
                                                     </Link>
                                                     {t.slug !== 'platform-admin' && (

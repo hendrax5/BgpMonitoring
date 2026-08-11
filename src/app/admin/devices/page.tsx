@@ -30,11 +30,11 @@ export default async function AdminDevicesPage() {
 
     return (
         <div className="min-h-screen">
-            <header className="sticky top-0 z-40 flex items-center justify-between px-6 py-3 border-b"
-                style={{ backgroundColor: '#0d1520', borderColor: 'rgba(255,255,255,0.07)' }}>
+            <header className="sticky top-0 z-40 flex items-center justify-between px-6 py-3 border-b glass"
+                style={{ borderColor: 'var(--color-border)' }}>
                 <div>
                     <div className="flex items-center gap-2 text-xs mb-0.5">
-                        <Link href="/admin" className="hover:text-white transition-colors" style={{ color: '#f59e0b' }}>
+                        <Link href="/admin" className="hover:text-white transition-colors" style={{ color: '#fbbf24' }}>
                             <span className="font-bold uppercase tracking-wider">Admin</span>
                         </Link>
                         <span style={{ color: '#475569' }}>/</span>
@@ -42,10 +42,7 @@ export default async function AdminDevicesPage() {
                     </div>
                     <h2 className="text-white font-bold text-base">Manage Device Tenants</h2>
                 </div>
-                <Link href="/admin" className="text-xs px-3 py-1.5 rounded-lg"
-                    style={{ color: '#64748b', border: '1px solid rgba(255,255,255,0.07)' }}>
-                    ← Back to Admin
-                </Link>
+                <Link href="/admin" className="btn-ghost text-xs">← Back to Admin</Link>
             </header>
 
             <main className="p-6">
@@ -102,8 +99,8 @@ export default async function AdminDevicesPage() {
                                                     ))}
                                                 </select>
                                                 <button type="submit"
-                                                    className="text-xs font-bold px-3 py-1.5 rounded-lg text-white"
-                                                    style={{ backgroundColor: '#13a4ec' }}>
+                                                    className="btn-primary text-xs"
+                                                    style={{ padding: '0.4rem 0.9rem' }}>
                                                     Assign
                                                 </button>
                                             </form>

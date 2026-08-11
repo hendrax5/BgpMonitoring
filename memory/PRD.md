@@ -49,9 +49,18 @@ User choices:
 ## Verified — Iteration 3
 - Testing agent: 18/18 frontend checks PASS; `/api/bgp-peers/push` preview+diff+apply all 200 OK via real SSH. CRUD regression + dashboard OK.
 
-## Known non-blocking notes
-- Pre-existing SSR hydration mismatch on dashboard "Since:" timestamp (dev console only).
-- Dev-only webpack-hmr WebSocket 502 through ingress (harmless).
+## Implemented — Iteration 4 (2026-06): Config Management + Platform Admin redesign
+- Re-themed the off-brand (blue/zinc) **Config Management** to the cyan/indigo glass SaaS system: glass sticky header + breadcrumb + role badge, segmented tab control (`.seg-tabs`), `stat-card` metrics + "Trigger Backup Now", and a fully rebranded **Compliance Policies** table + create/edit modal (design-system inputs/buttons). Files: `config-management/page.tsx`, `components/ConfigDashboard.tsx`, `ConfigPolicies.tsx`, `ConfigDevices.tsx`.
+- Refreshed **Platform Admin** surfaces to match: `admin/page.tsx` (glass header + UserProfileDropdown, cyan/indigo `stat-card`s, branded create-tenant + tenants table), `admin/settings/page.tsx`, `admin/devices/page.tsx`, `admin/tenants/[tenantId]/page.tsx` (section icons, add/delete device+user, branding form, role/plan badges → brand tokens).
+- Added CSS utilities: `.seg-tabs/.seg-tab`, `.animate-fade-in-up`, `.scrollbar-hide`, `.section-head`.
+- **Resilience**: added `scripts/bootstrap.sh` + `bootstrap` supervisor program (idempotent) that starts Redis/PostgreSQL, ensures DB + schema, and re-seeds superadmin (`scripts/seed-superadmin.js`) + lab data on container restart. Verified after a container reset wiped Postgres/Redis.
+
+## Verified — Iteration 4
+- Testing agent: 100% (20/20) frontend checks PASS. Policy CRUD, tenant create, tenant detail (device/user/branding), device assignment, platform settings save, plus / and /bgp-peers regressions — all pass. No functional issues in redesigned pages.
+
+## Known non-blocking (pre-existing, on / Overview page only — NOT redesigned pages)
+- SSR hydration mismatch on dashboard "Since:" timestamps.
+- Duplicate React keys on dashboard sessions table (device-ip key not unique).
 
 ## Backlog / Next
 - Surface `lastPushLog` via tooltip on "Push failed" badge.

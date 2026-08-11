@@ -38,11 +38,11 @@ export default async function AdminSettingsPage() {
 
     return (
         <div className="min-h-screen">
-            <header className="sticky top-0 z-40 flex items-center justify-between px-6 py-3 border-b"
-                style={{ backgroundColor: '#0d1520', borderColor: 'rgba(255,255,255,0.07)' }}>
+            <header className="sticky top-0 z-40 flex items-center justify-between px-6 py-3 border-b glass"
+                style={{ borderColor: 'var(--color-border)' }}>
                 <div>
                     <div className="flex items-center gap-2 text-xs mb-0.5">
-                        <Link href="/admin" className="hover:text-white" style={{ color: '#f59e0b' }}>
+                        <Link href="/admin" className="hover:text-white" style={{ color: '#fbbf24' }}>
                             <span className="font-bold uppercase tracking-wider">Admin</span>
                         </Link>
                         <span style={{ color: '#475569' }}>/</span>
@@ -50,10 +50,7 @@ export default async function AdminSettingsPage() {
                     </div>
                     <h2 className="text-white font-bold text-base">Platform Configuration</h2>
                 </div>
-                <Link href="/admin" className="text-xs px-3 py-1.5 rounded-lg"
-                    style={{ color: '#64748b', border: '1px solid rgba(255,255,255,0.07)' }}>
-                    ← Back to Admin
-                </Link>
+                <Link href="/admin" className="btn-ghost text-xs">← Back to Admin</Link>
             </header>
 
             <main className="p-6 max-w-2xl">
@@ -90,10 +87,8 @@ export default async function AdminSettingsPage() {
                                 placeholder="e.g. PT Mitra Solusi" className="form-input w-full" />
                             <p className="text-[11px] mt-1" style={{ color: '#475569' }}>Ditampilkan di logo sidebar sebagai brand owner</p>
                         </div>
-                        <div className="pt-2 border-t" style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
-                            <button type="submit"
-                                className="px-6 py-2.5 rounded-xl font-bold text-white"
-                                style={{ background: 'linear-gradient(135deg, #13a4ec, #0d47a1)' }}>
+                        <div className="pt-2 border-t" style={{ borderColor: 'var(--color-border)' }}>
+                            <button type="submit" className="btn-primary" style={{ padding: '0.6rem 1.4rem' }}>
                                 Save Platform Settings
                             </button>
                         </div>
@@ -101,15 +96,15 @@ export default async function AdminSettingsPage() {
                 </div>
 
                 {/* Preview */}
-                <div className="card p-5 mt-4" style={{ border: '1px dashed rgba(245,158,11,0.3)' }}>
-                    <p className="text-xs font-bold mb-3" style={{ color: '#f59e0b' }}>PREVIEW SIDEBAR</p>
+                <div className="card p-5 mt-4" style={{ border: '1px dashed rgba(251,191,36,0.3)' }}>
+                    <p className="text-xs font-bold mb-3" style={{ color: '#fbbf24' }}>PREVIEW SIDEBAR</p>
                     <div className="flex items-center gap-3 p-3 rounded-lg" style={{ backgroundColor: 'rgba(255,255,255,0.04)' }}>
-                        <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#13a4ec' }}>
+                        <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #22d3ee, #6366f1)' }}>
                             <span className="material-symbols-outlined text-white text-lg">hub</span>
                         </div>
                         <div>
                             <p className="text-xs font-bold text-white">{cfg['company_name'] || 'Your Company'}</p>
-                            <p className="text-[10px]" style={{ color: '#13a4ec' }}>{cfg['monitoring_name'] || 'BGP Monitoring'}</p>
+                            <p className="text-[10px]" style={{ color: '#22d3ee' }}>{cfg['monitoring_name'] || 'BGP Monitoring'}</p>
                         </div>
                     </div>
                 </div>
