@@ -62,6 +62,26 @@ model BgpPeer {
   @@map("bgp_peer")
 }
 
+// ─── Audit Log (platform admin activity trail) ───────────────────────────────
+model AuditLog {
+  id            Int      @id @default(autoincrement())
+  tenantId      String?  @map("tenant_id")
+  actorId       Int?     @map("actor_id")
+  actorUsername String   @map("actor_username")
+  actorRole     String?  @map("actor_role")
+  action        String                              // create | delete | update
+  entityType    String   @map("entity_type")        // tenant | user | device | branding
+  entityId      String?  @map("entity_id")
+  entityLabel   String?  @map("entity_label")
+  metadata      String?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@index([entityType])
+  @@index([tenantId])
+  @@map("audit_log")
+}
+
 // ─── User ─────────────────────────────────────────────────────────────────────
 model AppUser {
   id        Int      @id @default(autoincrement())

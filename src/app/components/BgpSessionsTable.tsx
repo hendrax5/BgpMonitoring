@@ -61,10 +61,10 @@ export default function BgpSessionsTable({ allSessions }: { allSessions: any[] }
                   <span style={{ color: '#475569', fontSize: '0.875rem' }}>No BGP sessions match the current filters.</span>
                 </td>
               </tr>
-            ) : paginatedSessions.map((s) => {
+            ) : paginatedSessions.map((s, i) => {
               const isUp = s.bgpState === 'Established';
               return (
-                <tr key={`${s.serverName}-${s.deviceId}-${s.peerIp}`}>
+                <tr key={`${s.serverName}-${s.deviceId}-${s.peerIp}-${startIndex + i}`}>
 
                   {/* Peer Address + Device */}
                   <td>
@@ -110,8 +110,8 @@ export default function BgpSessionsTable({ allSessions }: { allSessions: any[] }
                   </td>
 
                   {/* Uptime */}
-                  <td title={`Since: ${new Date(s.stateChangedAt).toLocaleString()}`}>
-                    <span style={{ fontFamily: 'monospace', fontSize: '0.85rem', fontWeight: 600, color: isUp ? '#94a3b8' : '#f87171' }}>
+                  <td title={`Since: ${fmtDate(s.stateChangedAt)}`} suppressHydrationWarning>
+                    <span style={{ fontFamily: 'monospace', fontSize: '0.85rem', fontWeight: 600, color: isUp ? '#94a3b8' : '#f87171' }} suppressHydrationWarning>
                       {fmtUptime(s.stateChangedAt)}
                     </span>
                     <div className="text-[10px] mt-0.5" style={{ color: '#475569' }}>

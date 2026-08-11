@@ -27,7 +27,7 @@ async function createTenant(formData: FormData) {
     const bcrypt = await import('bcryptjs');
     const hashedPassword = await bcrypt.hash(adminPassword, 12);
 
-    await (prisma as any).tenant.create({
+    const created = await (prisma as any).tenant.create({
         data: {
             name,
             slug,
@@ -41,6 +41,8 @@ async function createTenant(formData: FormData) {
             }
         }
     });
+    const { logAudit } = await import('@/lib/audit');
+    await logAudit(session, { action: 'create', entityType: 'tenant', entityId: created.id, entityLabel: name, tenantId: created.id, metadata: { plan, adminUsername } });
     redirect('/admin');
 }
 
@@ -56,8 +58,11 @@ async function deleteTenant(formData: FormData) {
     const keys = await redis.keys(`BgpSession:${tenantId}:*`).catch(() => [] as string[]);
     if (keys.length > 0) await redis.del(...keys);
 
+    const target = await (prisma as any).tenant.findUnique({ where: { id: tenantId } });
     // Delete tenant (cascades: users, devices, sessions, events)
     await (prisma as any).tenant.delete({ where: { id: tenantId } });
+    const { logAudit } = await import('@/lib/audit');
+    await logAudit(session, { action: 'delete', entityType: 'tenant', entityId: tenantId, entityLabel: target?.name ?? tenantId });
     redirect('/admin');
 }
 

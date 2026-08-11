@@ -2,10 +2,21 @@
 
 import React, { useState, useEffect } from 'react';
 
+const POLICY_TEMPLATES = [
+    { slug: 'no-telnet', name: 'No Telnet Access', hint: 'Telnet must be disabled', icon: 'block', vendorMatch: 'all', mustMatch: false, regexPattern: 'transport input telnet|ip telnet server', severity: 'critical' },
+    { slug: 'ssh-only', name: 'SSH Management Enabled', hint: 'SSH must be configured', icon: 'lock', vendorMatch: 'all', mustMatch: true, regexPattern: 'transport input ssh|ip ssh version', severity: 'warning' },
+    { slug: 'ntp-set', name: 'NTP Configured', hint: 'At least one NTP server set', icon: 'schedule', vendorMatch: 'all', mustMatch: true, regexPattern: 'ntp server', severity: 'warning' },
+    { slug: 'no-default-snmp', name: 'No Default SNMP Community', hint: 'Forbid public/private communities', icon: 'vpn_key', vendorMatch: 'all', mustMatch: false, regexPattern: 'snmp-server community (public|private)', severity: 'critical' },
+    { slug: 'password-encryption', name: 'Password Encryption', hint: 'service password-encryption on', icon: 'password', vendorMatch: 'cisco', mustMatch: true, regexPattern: 'service password-encryption', severity: 'warning' },
+    { slug: 'logging-enabled', name: 'Central Logging', hint: 'Syslog / logging host set', icon: 'description', vendorMatch: 'all', mustMatch: true, regexPattern: 'logging (host|buffered|server)', severity: 'warning' },
+];
+
 export default function ConfigPolicies() {
     const [policies, setPolicies] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [formError, setFormError] = useState('');
+    const [applying, setApplying] = useState('');
+    const [toast, setToast] = useState('');
 
     const loadPolicies = () => {
         setLoading(true);
@@ -55,6 +66,24 @@ export default function ConfigPolicies() {
         } catch (err: any) { setFormError(err.message); }
     };
 
+    const applyTemplate = async (tpl: any) => {
+        setApplying(tpl.name);
+        try {
+            const res = await fetch('/api/config-management/policies', {
+                method: 'POST',
+                body: JSON.stringify({ action: 'create', ...tpl, isActive: true }),
+                headers: { 'Content-Type': 'application/json' },
+            });
+            const d = await res.json();
+            if (d.error) { setToast(d.error); }
+            else { setToast(`Enabled: ${tpl.name}`); loadPolicies(); }
+        } catch (err: any) { setToast(err.message); }
+        setApplying('');
+        setTimeout(() => setToast(''), 3000);
+    };
+
+    const existingNames = new Set(policies.map(p => p.name));
+
     return (
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -69,6 +98,45 @@ export default function ConfigPolicies() {
                     <span className="material-symbols-outlined text-base">add</span>
                     New Policy
                 </button>
+            </div>
+
+            {/* One-click templates */}
+            <div className="card p-5" data-testid="policy-templates">
+                <div className="flex items-center gap-2 mb-3">
+                    <span className="material-symbols-outlined" style={{ color: '#818cf8' }}>bolt</span>
+                    <h3 className="text-sm font-bold text-white">Quick Templates</h3>
+                    <span className="text-xs" style={{ color: '#64748b' }}>— enable common hardening rules in one click</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {POLICY_TEMPLATES.map(tpl => {
+                        const added = existingNames.has(tpl.name);
+                        return (
+                            <div key={tpl.name} className="flex items-start gap-3 p-3 rounded-xl"
+                                style={{ backgroundColor: 'rgba(255,255,255,0.02)', border: '1px solid var(--color-border)' }}>
+                                <span className="material-symbols-outlined text-lg mt-0.5" style={{ color: tpl.severity === 'critical' ? '#fb7185' : '#fbbf24' }}>{tpl.icon}</span>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-semibold text-white truncate">{tpl.name}</p>
+                                    <p className="text-[11px] mb-2" style={{ color: '#64748b' }}>{tpl.hint}</p>
+                                    <button
+                                        data-testid={`apply-template-${tpl.slug}`}
+                                        onClick={() => applyTemplate(tpl)}
+                                        disabled={added || applying === tpl.name}
+                                        className={added ? 'btn-ghost text-xs' : 'btn-primary text-xs'}
+                                        style={added ? { opacity: 0.6 } : { background: 'linear-gradient(135deg,#6366f1,#4338ca)', color: '#fff' }}>
+                                        <span className="material-symbols-outlined text-sm">{added ? 'check' : 'add'}</span>
+                                        {added ? 'Enabled' : applying === tpl.name ? 'Enabling…' : 'Enable'}
+                                    </button>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+                {toast && (
+                    <div className="mt-3 text-xs font-medium px-3 py-2 rounded-lg" data-testid="template-toast"
+                        style={{ backgroundColor: 'rgba(52,211,153,0.1)', color: '#34d399', border: '1px solid rgba(52,211,153,0.25)' }}>
+                        {toast}
+                    </div>
+                )}
             </div>
 
             {loading ? (

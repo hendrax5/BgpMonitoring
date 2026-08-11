@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import Link from 'next/link';
+import BrandingForm from './BrandingForm';
 
 // ─── Server Actions ─────────────────────────────────────────────────────────
 
@@ -41,6 +42,8 @@ async function addTenantDevice(formData: FormData) {
             sshCredentialId,
         }
     });
+    const { logAudit } = await import('@/lib/audit');
+    await logAudit(session, { action: 'create', entityType: 'device', entityLabel: `${hostname} (${ipAddress})`, tenantId, metadata: { vendor } });
     revalidatePath(`/admin/tenants/${tenantId}`);
 }
 
@@ -53,7 +56,10 @@ async function deleteTenantDevice(formData: FormData) {
     const tenantId = formData.get('tenantId') as string;
     if (!deviceId || !tenantId) return;
 
+    const dev = await (prisma as any).routerDevice.findFirst({ where: { id: deviceId, tenantId } });
     await (prisma as any).routerDevice.deleteMany({ where: { id: deviceId, tenantId } });
+    const { logAudit } = await import('@/lib/audit');
+    await logAudit(session, { action: 'delete', entityType: 'device', entityId: deviceId, entityLabel: dev ? `${dev.hostname} (${dev.ipAddress})` : String(deviceId), tenantId });
     revalidatePath(`/admin/tenants/${tenantId}`);
 }
 
@@ -75,6 +81,8 @@ async function addTenantUser(formData: FormData) {
     await (prisma as any).appUser.create({
         data: { tenantId, username, password: hashed, role }
     });
+    const { logAudit } = await import('@/lib/audit');
+    await logAudit(session, { action: 'create', entityType: 'user', entityLabel: username, tenantId, metadata: { role } });
     revalidatePath(`/admin/tenants/${tenantId}`);
 }
 
@@ -87,7 +95,10 @@ async function deleteTenantUser(formData: FormData) {
     const tenantId = formData.get('tenantId') as string;
     if (!userId || !tenantId) return;
 
+    const usr = await (prisma as any).appUser.findFirst({ where: { id: userId, tenantId } });
     await (prisma as any).appUser.deleteMany({ where: { id: userId, tenantId } });
+    const { logAudit } = await import('@/lib/audit');
+    await logAudit(session, { action: 'delete', entityType: 'user', entityId: userId, entityLabel: usr?.username ?? String(userId), tenantId });
     revalidatePath(`/admin/tenants/${tenantId}`);
 }
 
@@ -97,20 +108,22 @@ async function saveTenantBranding(formData: FormData) {
     if (session.role !== 'superadmin') return;
 
     const tenantId = formData.get('tenantId') as string;
-    const entries = ['monitoring_name', 'company_name', 'plan'];
+    const entries = ['monitoring_name', 'company_name', 'logo_url', 'primary_color'];
     for (const key of entries) {
         const value = formData.get(key) as string | null;
         if (value === null || value === undefined) continue;
-        if (key === 'plan') {
-            await (prisma as any).tenant.update({ where: { id: tenantId }, data: { plan: value } });
-        } else {
-            await (prisma as any).appSettings.upsert({
-                where: { tenantId_key: { tenantId, key } },
-                create: { tenantId, key, value },
-                update: { value },
-            });
-        }
+        await (prisma as any).appSettings.upsert({
+            where: { tenantId_key: { tenantId, key } },
+            create: { tenantId, key, value },
+            update: { value },
+        });
     }
+    const plan = formData.get('plan') as string | null;
+    if (plan) {
+        await (prisma as any).tenant.update({ where: { id: tenantId }, data: { plan } });
+    }
+    const { logAudit } = await import('@/lib/audit');
+    await logAudit(session, { action: 'update', entityType: 'branding', entityId: tenantId, entityLabel: (formData.get('company_name') as string) || tenantId, tenantId, metadata: { plan } });
     revalidatePath(`/admin/tenants/${tenantId}`);
     revalidatePath('/admin');
 }
@@ -138,7 +151,7 @@ export default async function TenantManagePage({ params }: { params: Promise<{ t
     });
 
     const brandingRows = await (prisma as any).appSettings.findMany({
-        where: { tenantId, key: { in: ['monitoring_name', 'company_name'] } }
+        where: { tenantId, key: { in: ['monitoring_name', 'company_name', 'logo_url', 'primary_color'] } }
     });
     const branding: Record<string, string> = Object.fromEntries(brandingRows.map((r: any) => [r.key, r.value]));
 
@@ -357,43 +370,13 @@ export default async function TenantManagePage({ params }: { params: Promise<{ t
                         <span className="material-symbols-outlined" style={{ color: '#22d3ee' }}>palette</span>
                         <h3 className="text-base font-bold text-white">Branding & Plan</h3>
                     </div>
-                    <div className="card p-6 max-w-xl">
-                        <form action={saveTenantBranding} className="space-y-4">
-                            <input type="hidden" name="tenantId" value={tenantId} />
-                            <div>
-                                <label className="block text-xs font-bold uppercase tracking-widest mb-1.5" style={{ color: '#64748b' }}>
-                                    Plan Langganan
-                                </label>
-                                <select name="plan" className="form-input w-full" defaultValue={tenant.plan}>
-                                    <option value="free">Free</option>
-                                    <option value="standard">Standard</option>
-                                    <option value="professional">Professional</option>
-                                    <option value="enterprise">Enterprise</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold uppercase tracking-widest mb-1.5" style={{ color: '#64748b' }}>
-                                    Nama Monitoring (Sidebar)
-                                </label>
-                                <input type="text" name="monitoring_name"
-                                    defaultValue={branding['monitoring_name'] || ''}
-                                    placeholder="e.g. BGP Monitoring" className="form-input w-full" />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold uppercase tracking-widest mb-1.5" style={{ color: '#64748b' }}>
-                                    Nama Organisasi (Sidebar)
-                                </label>
-                                <input type="text" name="company_name"
-                                    defaultValue={branding['company_name'] || ''}
-                                    placeholder="e.g. PT Mitra Net" className="form-input w-full" />
-                            </div>
-                            <div className="pt-2 border-t" style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
-                                <button type="submit" className="btn-primary" style={{ padding: '0.6rem 1.4rem' }}>
-                                    Simpan Perubahan
-                                </button>
-                            </div>
-                        </form>
-                    </div>
+                    <BrandingForm
+                        tenantId={tenantId}
+                        tenantName={tenant.name}
+                        plan={tenant.plan}
+                        initial={branding}
+                        saveAction={saveTenantBranding}
+                    />
                 </section>
 
             </main>

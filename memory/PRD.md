@@ -58,9 +58,18 @@ User choices:
 ## Verified — Iteration 4
 - Testing agent: 100% (20/20) frontend checks PASS. Policy CRUD, tenant create, tenant detail (device/user/branding), device assignment, platform settings save, plus / and /bgp-peers regressions — all pass. No functional issues in redesigned pages.
 
-## Known non-blocking (pre-existing, on / Overview page only — NOT redesigned pages)
-- SSR hydration mismatch on dashboard "Since:" timestamps.
-- Duplicate React keys on dashboard sessions table (device-ip key not unique).
+## Implemented — Iteration 5 (2026-06)
+- **Bug fix (Overview dashboard console)**: fixed SSR hydration mismatch on "Since:" timestamps (deterministic `fmtDate` + `suppressHydrationWarning` on the uptime cell) and duplicate React keys on the sessions table (row key now includes index). Verified: 0 hydration / 0 duplicate-key warnings.
+- **Policy Templates**: `ConfigPolicies` gains a "Quick Templates" panel with 6 one-click hardening presets (No Telnet, SSH Enabled, NTP, No Default SNMP, Password Encryption, Central Logging) — enabling creates the policy and flips the button to "Enabled".
+- **Tenant Branding Preview**: new client `BrandingForm` on the tenant detail page with a live sidebar preview that updates instantly as you type name/monitoring and pick a primary color; added `logo_url` + `primary_color` branding fields (stored in AppSettings).
+- **Admin Audit Log**: new `AuditLog` Prisma model + `lib/audit.ts`; write events on tenant create/delete, user create/delete, device create/delete, and branding update. New searchable/filterable page `/admin/audit` (+ sidebar link).
+
+## Verified — Iteration 5
+- Testing agent: 100% (17/17). Bug fix confirmed fixed; templates, branding live-preview + persistence, and audit create/update/delete + search/filters all pass. No regressions.
+
+## Known non-blocking / out of scope
+- template-toast auto-dismisses (~3s) — functional; on-screen "Enabled" confirmation persists.
+- Pre-existing: tenant-detail "Add Device" form validation feedback could be clearer (not modified this iteration).
 
 ## Backlog / Next
 - Surface `lastPushLog` via tooltip on "Push failed" badge.

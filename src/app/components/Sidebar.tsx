@@ -14,6 +14,7 @@ const navItems = [
 const adminItems = [
   { href: '/admin', label: 'Overview', icon: 'admin_panel_settings' },
   { href: '/admin/devices', label: 'Device Assignment', icon: 'device_hub' },
+  { href: '/admin/audit', label: 'Audit Log', icon: 'history' },
   { href: '/admin/settings', label: 'Platform Settings', icon: 'tune' },
 ];
 
