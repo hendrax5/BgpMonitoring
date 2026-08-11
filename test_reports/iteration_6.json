@@ -1,0 +1,42 @@
+{
+  "summary": "Iteration 6 — verified (1) Policy Scan Now on /config-management Dashboard tab and (2) Dashboard 'Add Device' quick action + validation. Both features work end-to-end. Regression on /bgp-peers, /admin, /admin/audit, /admin/tenants/<id>, and /config-management tabs all green.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_results": {
+    "login_admin_admin123": "PASS",
+    "dashboard_add_device_button": "PASS — [data-testid=dashboard-add-device-btn] visible on / for superadmin, opens [data-testid=quick-add-device-modal]",
+    "add_device_missing_tenant_validation": "PASS — [data-testid=qad-tenant] is `required`; browser checkValidity()==false when submitted empty (native required blocks submission)",
+    "add_device_invalid_ip": "PASS — [data-testid=quick-add-device-error] displays 'A valid IP address is required.' after submitting 'not-an-ip!!!' with tenant+hostname filled",
+    "add_device_success": "PASS — valid submit (Platform Admin tenant, hostname TEST-qad-1786414846, IP 10.99.80.96) closes modal, shows [data-testid=qad-toast] with 'Device added successfully.'",
+    "add_device_duplicate": "PASS — resubmitting same hostname+IP shows 'A device with this hostname or IP already exists.' in [data-testid=quick-add-device-error] (P2002 mapped correctly)",
+    "policy_scan_button": "PASS — [data-testid=run-scan-btn] present on Dashboard tab of /config-management",
+    "policy_scan_result_panel": "PASS — clicking button populates [data-testid=scan-result] with 'Scan complete — 3 device(s) evaluated against 4 active policies' and shows 0 COMPLIANT / 1 VIOLATIONS / 2 NO BACKUP with per-device violation messages for lab-router-01 (No Telnet Access [CRITICAL], SSH Management Enabled [WARNING], NTP Configured [WARNING], No Default SNMP Community [CRITICAL])",
+    "policy_scan_stat_cards_sync": "PASS — Compliant/Failed/No Backup stat cards match scan result counts",
+    "policy_scan_no_policies_case": "CODE-VERIFIED — /app/src/app/api/config-management/scan/route.ts loops over an empty policies array so every device with a backup becomes compliant, no error thrown, response still returns {scanned, policiesEvaluated:0, compliant, nonCompliant:0, noBackup, violations:[]}. Not executed in UI to avoid disabling seeded policies.",
+    "regression_bgp_peers": "PASS (200, no error text)",
+    "regression_admin": "PASS (200)",
+    "regression_admin_audit": "PASS (200)",
+    "regression_tenant_detail": "PASS (/admin/tenants/28cca743-...-63e6, 200)",
+    "regression_config_mgmt_tabs": "PASS — Dashboard, Device Backups, Compliance Policies tabs all clickable"
+  },
+  "test_report_links": ["/app/test_reports/iteration_6.json"],
+  "action_items": [
+    "Cleanup: A test device 'TEST-qad-1786414846' (10.99.80.96, mikrotik) was created under 'Platform Admin' tenant to verify the Add Device flow. The tenant detail page does not expose an obvious per-device Delete affordance from the device row (auto-cleanup was not possible via UI). Please delete it via Prisma or add a delete button in the tenant device table.",
+    "State change: the 'Password Encryption' compliance policy template was enabled during scan verification (in addition to the 3 templates already enabled prior to this run). If the baseline should be 3 templates, disable it. Currently there are 4 active policies. lab-router-01's backup violates all 4."
+  ],
+  "critical_code_review_comments": [
+    "Scan API (/api/config-management/scan) is clean: correctly filters by tenant for non-superadmin, uses vendorMatch case-insensitive, catches invalid regex per policy, updates DeviceConfigBackup.isCompliant and complianceLog per device, and returns aggregated counts. Nice separation of concerns.",
+    "addDeviceQuick action correctly gates roles (MANAGE_ROLES), enforces superadmin tenant selection, validates IP with a simple v4/v6 regex, upserts SSH credential only when both user+pass provided, maps Prisma P2002 to a friendly duplicate error, and writes an AuditLog entry.",
+    "QuickAddDevice modal: good use of data-testid on every input & control, native `required` on tenant/hostname/ip, disabled-while-pending submit, toast auto-dismiss, and click-outside close guarded by pending state.",
+    "Minor: the IPv6 regex `/^[0-9a-fA-F:]+$/` is very permissive (accepts e.g. '::::::' or ':'). Consider a stricter validator; not blocking.",
+    "Minor: tenant detail device table does not expose delete/edit affordance for quick-added devices, making cleanup awkward for admins."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (code-verified + 1 live scan endpoint via UI)", "frontend": "100% (13/13 UI checks)"},
+  "test_credentials": "admin / admin123 (superadmin)",
+  "seed_data_creation": "Created 1 device: TEST-qad-1786414846 / 10.99.80.96 under Platform Admin tenant (needs cleanup). Enabled 'Password Encryption' template policy (was disabled). lab-router-01 and its seeded backup left intact.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Both features (Policy Scan Now + Dashboard Add Device) are fully working via public URL. Scan API returns per-device violations and stat cards sync. Add-device happy path, invalid IP, duplicate constraint, and required-tenant-for-superadmin all behave correctly. Cleanup TEST-qad-1786414846 before next iteration.",
+  "rca of the issue": "N/A — no functional issues found."
+}

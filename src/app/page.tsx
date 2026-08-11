@@ -6,6 +6,7 @@ import DashboardFilters from '@/app/components/DashboardFilters';
 import DashboardContent from '@/app/components/DashboardContent';
 import DashboardSkeleton from '@/app/components/DashboardSkeleton';
 import UserProfileDropdown from '@/app/components/UserProfileDropdown';
+import QuickAddDevice from '@/app/components/QuickAddDevice';
 
 export default async function Home({ searchParams }: { searchParams: Promise<{ device?: string; sort?: string; status?: string; search?: string; tenant?: string }> }) {
   const session = await requireSession();
@@ -49,6 +50,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
           <DashboardFilters devices={devices} tenants={tenants} />
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
+          {session.role !== 'viewer' && (
+            <QuickAddDevice isSuperAdmin={isSuperAdmin} tenants={tenants || []} />
+          )}
           <UserProfileDropdown username={session?.username} role={session?.role} />
         </div>
       </header>

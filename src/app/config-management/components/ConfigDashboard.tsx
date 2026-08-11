@@ -15,24 +15,38 @@ interface Device {
 export default function ConfigDashboard() {
     const [devices, setDevices] = useState<Device[]>([]);
     const [loading, setLoading] = useState(true);
+    const [scanning, setScanning] = useState(false);
+    const [scanResult, setScanResult] = useState<any>(null);
 
-    useEffect(() => {
-        fetch('/api/config-management/devices')
+    const loadDevices = () => {
+        return fetch('/api/config-management/devices')
             .then(r => r.json())
-            .then(d => {
-                if (d.devices) setDevices(d.devices);
-                setLoading(false);
-            })
+            .then(d => { if (d.devices) setDevices(d.devices); setLoading(false); })
             .catch(() => setLoading(false));
-    }, []);
+    };
+
+    useEffect(() => { loadDevices(); }, []);
 
     const triggerBackupNow = async () => {
         try {
-            alert('Triggering background backup logic...');
             await fetch('/api/config-management/backup-now', { method: 'POST' });
         } catch (e) {
             console.error(e);
         }
+    };
+
+    const runScan = async () => {
+        setScanning(true);
+        setScanResult(null);
+        try {
+            const res = await fetch('/api/config-management/scan', { method: 'POST' });
+            const data = await res.json();
+            setScanResult(res.ok ? data : { error: data.error || 'Scan failed' });
+            await loadDevices();
+        } catch (e: any) {
+            setScanResult({ error: e.message });
+        }
+        setScanning(false);
     };
 
     if (loading) return (
@@ -57,11 +71,58 @@ export default function ConfigDashboard() {
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <h2 className="text-lg font-bold text-white tracking-tight">Backup Overview</h2>
-                <button onClick={triggerBackupNow} className="btn-primary" data-testid="trigger-backup-btn">
-                    <span className="material-symbols-outlined text-base">backup</span>
-                    Trigger Backup Now
-                </button>
+                <div className="flex items-center gap-3">
+                    <button onClick={runScan} disabled={scanning} className="btn-ghost" data-testid="run-scan-btn"
+                        style={{ borderColor: 'rgba(129,140,248,0.4)', color: '#a5b4fc' }}>
+                        <span className={`material-symbols-outlined text-base${scanning ? ' animate-spin' : ''}`}>{scanning ? 'progress_activity' : 'policy'}</span>
+                        {scanning ? 'Scanning…' : 'Run Compliance Scan'}
+                    </button>
+                    <button onClick={triggerBackupNow} className="btn-primary" data-testid="trigger-backup-btn">
+                        <span className="material-symbols-outlined text-base">backup</span>
+                        Trigger Backup Now
+                    </button>
+                </div>
             </div>
+
+            {scanResult && (
+                <div className="card p-5 animate-rise" data-testid="scan-result"
+                    style={{ border: `1px solid ${scanResult.error ? 'rgba(251,113,133,0.3)' : scanResult.nonCompliant > 0 ? 'rgba(251,191,36,0.3)' : 'rgba(52,211,153,0.3)'}` }}>
+                    {scanResult.error ? (
+                        <p className="text-sm font-medium" style={{ color: '#fb7185' }}>{scanResult.error}</p>
+                    ) : (
+                        <>
+                            <div className="flex items-center gap-2 mb-3">
+                                <span className="material-symbols-outlined" style={{ color: scanResult.nonCompliant > 0 ? '#fbbf24' : '#34d399' }}>
+                                    {scanResult.nonCompliant > 0 ? 'gpp_maybe' : 'verified_user'}
+                                </span>
+                                <h3 className="font-bold text-white text-sm">
+                                    Scan complete — {scanResult.scanned} device(s) evaluated against {scanResult.policiesEvaluated} active polic{scanResult.policiesEvaluated === 1 ? 'y' : 'ies'}
+                                </h3>
+                            </div>
+                            <div className="flex flex-wrap gap-3 mb-3 text-xs">
+                                <span className="badge-established">{scanResult.compliant} Compliant</span>
+                                {scanResult.nonCompliant > 0 && <span className="badge-down">{scanResult.nonCompliant} Violations</span>}
+                                {scanResult.noBackup > 0 && <span className="badge-warning">{scanResult.noBackup} No Backup</span>}
+                            </div>
+                            {scanResult.violations?.length > 0 && (
+                                <div className="space-y-2 max-h-48 overflow-y-auto">
+                                    {scanResult.violations.map((v: any, i: number) => (
+                                        <div key={i} className="text-xs p-2.5 rounded-lg" style={{ backgroundColor: 'rgba(251,113,133,0.06)', border: '1px solid rgba(251,113,133,0.15)' }}>
+                                            <p className="font-bold text-white mb-1">{v.hostname}</p>
+                                            {v.messages.map((m: string, j: number) => (
+                                                <p key={j} className="font-mono" style={{ color: '#fca5a5' }}>{m}</p>
+                                            ))}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                            {scanResult.policiesEvaluated === 0 && (
+                                <p className="text-xs" style={{ color: '#64748b' }}>No active policies. Enable policies (or Quick Templates) to enforce compliance.</p>
+                            )}
+                        </>
+                    )}
+                </div>
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {cards.map((c, i) => (

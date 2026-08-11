@@ -67,9 +67,12 @@ User choices:
 ## Verified — Iteration 5
 - Testing agent: 100% (17/17). Bug fix confirmed fixed; templates, branding live-preview + persistence, and audit create/update/delete + search/filters all pass. No regressions.
 
-## Known non-blocking / out of scope
-- template-toast auto-dismisses (~3s) — functional; on-screen "Enabled" confirmation persists.
-- Pre-existing: tenant-detail "Add Device" form validation feedback could be clearer (not modified this iteration).
+## Implemented — Iteration 6 (2026-06)
+- **Policy Scan Now**: on-demand compliance scan — API `POST /api/config-management/scan` re-evaluates each device's latest stored config backup against all active `CompliancePolicy` rules (vendor-aware, regex must-match/forbidden), updates `DeviceConfigBackup.isCompliant`/`complianceLog`, and returns per-device violations + counts. UI: "Run Compliance Scan" button on the Config Management dashboard with a rich result panel; stat cards refresh to match.
+- **Dashboard Add Device (PRTG-style UX)**: `QuickAddDevice` modal + `addDeviceQuick` server action let any manage-role user (superadmin/orgadmin/networkengineer) add a device straight from the main Overview header (hidden for viewers). Supports hostname/IP/vendor/poll-method/SNMP + optional SSH creds; superadmin picks the org; duplicates & invalid IP handled; writes an AuditLog entry. Platform-admin-only items remain in the sidebar's "Platform Admin" section — role difference stays in that menu, day-to-day device management is unified in the main UI.
+
+## Verified — Iteration 6
+- Testing agent: 100% (13/13 UI + backend code-verified + live scan). Add-device happy path, invalid IP, duplicate constraint, required-tenant validation, and scan result/stat-sync all pass. No regressions.
 
 ## Backlog / Next
 - Surface `lastPushLog` via tooltip on "Push failed" badge.
