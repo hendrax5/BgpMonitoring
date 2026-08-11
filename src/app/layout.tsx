@@ -38,6 +38,8 @@ export default async function RootLayout({
   let appName = 'BGP Monitor';
   let monitoringName = 'BGP Monitoring';
   let companyName = '';
+  let logoUrl = '';
+  let primaryColor = '#22d3ee';
 
   try {
     // Read GlobalSettings first (superadmin-level defaults)
@@ -46,15 +48,19 @@ export default async function RootLayout({
     appName = gCfg['app_name'] || appName;
     monitoringName = gCfg['monitoring_name'] || monitoringName;
     companyName = gCfg['company_name'] || companyName;
+    logoUrl = gCfg['logo_url'] || logoUrl;
+    primaryColor = gCfg['primary_color'] || primaryColor;
 
     // Per-tenant branding overrides GlobalSettings (if user is logged in + has tenant branding)
     if (session?.tenantId && session.role !== 'superadmin') {
       const tenantSettings = await (prisma as any).appSettings.findMany({
-        where: { tenantId: session.tenantId, key: { in: ['monitoring_name', 'company_name'] } }
+        where: { tenantId: session.tenantId, key: { in: ['monitoring_name', 'company_name', 'logo_url', 'primary_color'] } }
       });
       const tCfg: Record<string, string> = Object.fromEntries(tenantSettings.map((s: any) => [s.key, s.value]));
       if (tCfg['monitoring_name']) monitoringName = tCfg['monitoring_name'];
       if (tCfg['company_name']) companyName = tCfg['company_name'];
+      if (tCfg['logo_url']) logoUrl = tCfg['logo_url'];
+      if (tCfg['primary_color']) primaryColor = tCfg['primary_color'];
     }
   } catch { /* Tables might not exist yet on first run */ }
 
@@ -77,6 +83,8 @@ export default async function RootLayout({
           appName={appName}
           monitoringName={monitoringName}
           companyName={companyName}
+          logoUrl={logoUrl}
+          primaryColor={primaryColor}
         />
         <div className="flex-1 flex flex-col min-h-screen overflow-auto relative">
           <AlarmManager />

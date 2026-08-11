@@ -74,6 +74,19 @@ User choices:
 ## Verified — Iteration 6
 - Testing agent: 100% (13/13 UI + backend code-verified + live scan). Add-device happy path, invalid IP, duplicate constraint, required-tenant validation, and scan result/stat-sync all pass. No regressions.
 
+## Implemented — Iteration 7 (2026-06)
+- **Device Row Actions**: inline edit/delete per device row on tenant detail (`DeviceRowActions.tsx` + update action in `admin/tenants/[tenantId]/page.tsx`).
+- **Scan On Save**: enabling a policy/template auto-triggers a compliance rescan (`ConfigPolicies.tsx`).
+- **Compliance History**: `ComplianceRun` Prisma model, scan route records runs, `GET /api/config-management/history`, timeline in `ConfigDashboard.tsx`.
+- **Live Tenant Branding**: `layout.tsx` reads per-tenant AppSettings (logo_url/primary_color/monitoring_name/company_name) for non-superadmin sessions and passes to `Sidebar.tsx`; drives logo, brand name, monitoring label, `--brand` primary color + active-nav accent.
+
+## Verified — Iteration 7
+- Testing agent: Device Row Actions / Scan On Save / Compliance History all PASS, no critical bugs.
+- **Live Tenant Branding: VERIFIED (agent-tested)** — logged in as orgadmin `mitraadmin` (tenant MitraNet), sidebar shows MitraNet logo, "MitraNet NOC" label, and orange (#f97316) primary color on logo + active nav. Screenshot confirmed. Seed: `scripts/seed-orgadmin-branding.js`.
+
+## Infra note (2026-06)
+- Preview env resets can wipe PostgreSQL/Redis. Recovery: `redis-server --daemonize yes` + `service postgresql start` + `bash scripts/bootstrap.sh`. The `bootstrap` supervisor program can exit before Postgres is ready on a cold start — run bootstrap.sh manually if login returns 500.
+
 ## Backlog / Next
 - Surface `lastPushLog` via tooltip on "Push failed" badge.
 - Per-vendor push validation against real hardware.

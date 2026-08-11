@@ -23,9 +23,11 @@ interface SidebarProps {
   appName?: string;
   monitoringName?: string;
   companyName?: string;
+  logoUrl?: string;
+  primaryColor?: string;
 }
 
-function SidebarInner({ isSuperAdmin, monitoringName, companyName }: SidebarProps) {
+function SidebarInner({ isSuperAdmin, monitoringName, companyName, logoUrl, primaryColor }: SidebarProps) {
   const pathname = usePathname();
 
   // Hide sidebar completely on auth pages
@@ -33,6 +35,7 @@ function SidebarInner({ isSuperAdmin, monitoringName, companyName }: SidebarProp
 
   const displayCompany = companyName || 'BGP Monitor';
   const displayMonitoring = monitoringName || 'BGP Monitoring';
+  const brand = primaryColor || '#22d3ee';
 
   return (
     <>
@@ -54,16 +57,23 @@ function SidebarInner({ isSuperAdmin, monitoringName, companyName }: SidebarProp
         style={{
           borderColor: 'var(--color-border)',
           minHeight: '100vh',
+          ['--brand' as any]: brand,
         }}
       >
         {/* Logo + mobile close button */}
         <div className="flex items-center gap-3 px-4 py-4 border-b" style={{ borderColor: 'var(--color-border)' }}>
-          <div className="flex items-center justify-center w-9 h-9 rounded-xl flex-shrink-0" style={{ background: 'linear-gradient(135deg, #22d3ee, #6366f1)', boxShadow: '0 4px 20px -6px rgba(34,211,238,0.6)' }}>
-            <span className="material-symbols-outlined text-white text-lg">hub</span>
-          </div>
+          {logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={logoUrl} alt="logo" className="w-9 h-9 rounded-xl object-cover flex-shrink-0"
+              style={{ boxShadow: `0 4px 20px -6px ${brand}99` }} />
+          ) : (
+            <div className="flex items-center justify-center w-9 h-9 rounded-xl flex-shrink-0" style={{ background: `linear-gradient(135deg, ${brand}, ${brand}88)`, boxShadow: `0 4px 20px -6px ${brand}99` }}>
+              <span className="material-symbols-outlined text-white text-lg">hub</span>
+            </div>
+          )}
           <div className="min-w-0 flex-1">
             <h1 className="font-bold text-xs text-white truncate">{displayCompany}</h1>
-            <p className="text-[10px] truncate" style={{ color: '#22d3ee' }}>{displayMonitoring}</p>
+            <p className="text-[10px] truncate" style={{ color: brand }}>{displayMonitoring}</p>
           </div>
           {/* Mobile close (×) button — only visible on small screens */}
           <button

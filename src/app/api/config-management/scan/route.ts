@@ -65,6 +65,11 @@ export async function POST(req: NextRequest) {
         else { nonCompliant++; violations.push({ hostname: d.hostname, messages: msgs }); }
     }
 
+    const runTenant = session.role === 'superadmin' ? (requestedTenant && requestedTenant !== 'all' ? requestedTenant : null) : session.tenantId;
+    await (prisma as any).complianceRun.create({
+        data: { tenantId: runTenant, deviceCount: devices.length, compliant, nonCompliant, noBackup, policiesEvaluated: policies.length },
+    });
+
     return NextResponse.json({
         scanned: devices.length,
         policiesEvaluated: policies.length,

@@ -17,6 +17,7 @@ export default function ConfigDashboard() {
     const [loading, setLoading] = useState(true);
     const [scanning, setScanning] = useState(false);
     const [scanResult, setScanResult] = useState<any>(null);
+    const [history, setHistory] = useState<any[]>([]);
 
     const loadDevices = () => {
         return fetch('/api/config-management/devices')
@@ -25,7 +26,14 @@ export default function ConfigDashboard() {
             .catch(() => setLoading(false));
     };
 
-    useEffect(() => { loadDevices(); }, []);
+    const loadHistory = () => {
+        return fetch('/api/config-management/history')
+            .then(r => r.json())
+            .then(d => { if (d.runs) setHistory(d.runs); })
+            .catch(() => { });
+    };
+
+    useEffect(() => { loadDevices(); loadHistory(); }, []);
 
     const triggerBackupNow = async () => {
         try {
@@ -43,6 +51,7 @@ export default function ConfigDashboard() {
             const data = await res.json();
             setScanResult(res.ok ? data : { error: data.error || 'Scan failed' });
             await loadDevices();
+            await loadHistory();
         } catch (e: any) {
             setScanResult({ error: e.message });
         }
@@ -149,6 +158,41 @@ export default function ConfigDashboard() {
                     </p>
                 </div>
             </div>
+
+            {/* Compliance History / Trend */}
+            {history.length > 0 && (
+                <div className="card p-5" data-testid="compliance-history">
+                    <div className="flex items-center gap-2 mb-4">
+                        <span className="material-symbols-outlined" style={{ color: '#818cf8' }}>trending_up</span>
+                        <h3 className="text-sm font-bold text-white">Compliance History</h3>
+                        <span className="text-xs" style={{ color: '#64748b' }}>— last {history.length} scan{history.length !== 1 ? 's' : ''}</span>
+                    </div>
+                    <div className="flex items-end gap-2 h-32 overflow-x-auto pb-1">
+                        {history.map((r: any) => {
+                            const total = Math.max(r.deviceCount, 1);
+                            const compPct = (r.compliant / total) * 100;
+                            const violPct = (r.nonCompliant / total) * 100;
+                            const nbPct = (r.noBackup / total) * 100;
+                            return (
+                                <div key={r.id} className="flex flex-col items-center gap-1.5 flex-shrink-0" style={{ width: '2.5rem' }}
+                                    title={`${new Date(r.at).toLocaleString()} — ${r.compliant} ok / ${r.nonCompliant} viol / ${r.noBackup} no-backup`}>
+                                    <div className="w-6 rounded-md overflow-hidden flex flex-col-reverse" style={{ height: '5.5rem', backgroundColor: 'rgba(255,255,255,0.04)' }}>
+                                        <div style={{ height: `${compPct}%`, backgroundColor: '#34d399' }} />
+                                        <div style={{ height: `${violPct}%`, backgroundColor: '#fb7185' }} />
+                                        <div style={{ height: `${nbPct}%`, backgroundColor: '#fbbf24' }} />
+                                    </div>
+                                    <span className="text-[9px] font-mono" style={{ color: '#475569' }}>{new Date(r.at).toISOString().slice(11, 16)}</span>
+                                </div>
+                            );
+                        })}
+                    </div>
+                    <div className="flex items-center gap-4 mt-3 text-[11px]" style={{ color: '#64748b' }}>
+                        <span className="flex items-center gap-1.5"><span className="dot" style={{ backgroundColor: '#34d399' }} />Compliant</span>
+                        <span className="flex items-center gap-1.5"><span className="dot" style={{ backgroundColor: '#fb7185' }} />Violations</span>
+                        <span className="flex items-center gap-1.5"><span className="dot" style={{ backgroundColor: '#fbbf24' }} />No Backup</span>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

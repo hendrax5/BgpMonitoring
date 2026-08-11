@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import Link from 'next/link';
 import BrandingForm from './BrandingForm';
+import DeviceRowActions from './DeviceRowActions';
 
 // ─── Server Actions ─────────────────────────────────────────────────────────
 
@@ -60,6 +61,23 @@ async function deleteTenantDevice(formData: FormData) {
     await (prisma as any).routerDevice.deleteMany({ where: { id: deviceId, tenantId } });
     const { logAudit } = await import('@/lib/audit');
     await logAudit(session, { action: 'delete', entityType: 'device', entityId: deviceId, entityLabel: dev ? `${dev.hostname} (${dev.ipAddress})` : String(deviceId), tenantId });
+    revalidatePath(`/admin/tenants/${tenantId}`);
+}
+
+async function updateTenantDevice(formData: FormData) {
+    'use server';
+    const session = await requireSession();
+    if (session.role !== 'superadmin') return;
+    const deviceId = parseInt(formData.get('deviceId') as string, 10);
+    const tenantId = formData.get('tenantId') as string;
+    const hostname = (formData.get('hostname') as string || '').trim();
+    const ipAddress = (formData.get('ipAddress') as string || '').trim();
+    const vendor = (formData.get('vendor') as string || '').trim();
+    const snmpCommunity = (formData.get('snmpCommunity') as string || '').trim() || null;
+    if (!hostname || !ipAddress) return;
+    await (prisma as any).routerDevice.updateMany({ where: { id: deviceId, tenantId }, data: { hostname, ipAddress, vendor, snmpCommunity } });
+    const { logAudit } = await import('@/lib/audit');
+    await logAudit(session, { action: 'update', entityType: 'device', entityId: deviceId, entityLabel: `${hostname} (${ipAddress})`, tenantId });
     revalidatePath(`/admin/tenants/${tenantId}`);
 }
 
@@ -258,14 +276,12 @@ export default async function TenantManagePage({ params }: { params: Promise<{ t
                                                 }
                                             </td>
                                             <td>
-                                                <form action={deleteTenantDevice}>
-                                                    <input type="hidden" name="deviceId" value={d.id} />
-                                                    <input type="hidden" name="tenantId" value={tenantId} />
-                                                    <button type="submit" className="btn-danger"
-                                                        style={{ padding: '0.3rem 0.7rem' }}>
-                                                        Hapus
-                                                    </button>
-                                                </form>
+                                                <DeviceRowActions
+                                                    device={{ id: d.id, hostname: d.hostname, ipAddress: d.ipAddress, vendor: d.vendor, snmpCommunity: d.snmpCommunity }}
+                                                    tenantId={tenantId}
+                                                    updateAction={updateTenantDevice}
+                                                    deleteAction={deleteTenantDevice}
+                                                />
                                             </td>
                                         </tr>
                                     ))}

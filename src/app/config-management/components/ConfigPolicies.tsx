@@ -62,7 +62,7 @@ export default function ConfigPolicies() {
             });
             const d = await res.json();
             if (d.error) setFormError(d.error);
-            else { setIsFormOpen(false); loadPolicies(); }
+            else { setIsFormOpen(false); loadPolicies(); fetch('/api/config-management/scan', { method: 'POST' }).catch(() => {}); }
         } catch (err: any) { setFormError(err.message); }
     };
 
@@ -76,10 +76,15 @@ export default function ConfigPolicies() {
             });
             const d = await res.json();
             if (d.error) { setToast(d.error); }
-            else { setToast(`Enabled: ${tpl.name}`); loadPolicies(); }
+            else {
+                loadPolicies();
+                // Scan On Save: keep compliance results current
+                fetch('/api/config-management/scan', { method: 'POST' }).catch(() => {});
+                setToast(`Enabled: ${tpl.name} — devices rescanned`);
+            }
         } catch (err: any) { setToast(err.message); }
         setApplying('');
-        setTimeout(() => setToast(''), 3000);
+        setTimeout(() => setToast(''), 3500);
     };
 
     const existingNames = new Set(policies.map(p => p.name));

@@ -82,6 +82,21 @@ model AuditLog {
   @@map("audit_log")
 }
 
+// ─── Compliance scan history (for trend tracking) ────────────────────────────
+model ComplianceRun {
+  id                Int      @id @default(autoincrement())
+  tenantId          String?  @map("tenant_id")
+  deviceCount       Int      @map("device_count")
+  compliant         Int
+  nonCompliant      Int      @map("non_compliant")
+  noBackup          Int      @map("no_backup")
+  policiesEvaluated Int      @map("policies_evaluated")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("compliance_run")
+}
+
 // ─── User ─────────────────────────────────────────────────────────────────────
 model AppUser {
   id        Int      @id @default(autoincrement())
